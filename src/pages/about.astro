@@ -1,0 +1,25 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+---
+
+<BaseLayout title="关于" description={`关于 ${siteConfig.name}。`}>
+  <section class="narrow page-block about">
+    <h1 class="section-title">关于</h1>
+    <p>
+      这里是 {siteConfig.name}，一个保持静态、轻量和容易迁移的个人博客。
+    </p>
+    <p>
+      当前公开页面只使用 Astro、GitHub Pages 和 Cloudflare，不依赖 ECS、Docker、数据库或后端 API。
+    </p>
+    <p>
+      未来如果需要评论、统计、表单或私密日记，会作为独立动态服务部署，不和公开博客混在一起。
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .about {
+    font-size: 1.08rem;
+  }
+</style>

@@ -1,0 +1,176 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import PostCard from "@/components/PostCard.astro";
+import { siteConfig } from "@/config/site";
+import { getAllTags, getPublishedPosts } from "@/lib/posts";
+
+const posts = await getPublishedPosts();
+const featuredPosts = posts.slice(0, 3);
+const tags = getAllTags(posts).slice(0, 10);
+---
+
+<BaseLayout title={siteConfig.name} description={siteConfig.description}>
+  <section class="hero">
+    <div class="container hero__inner">
+      <div class="hero__copy">
+        <p class="hero__eyebrow">个人静态博客</p>
+        <h1>{siteConfig.name}</h1>
+        <p>{siteConfig.description}</p>
+        <div class="hero__actions">
+          <a class="button button--primary" href="/blog/">看文章</a>
+          <a class="button button--ghost" href="/about/">关于我</a>
+        </div>
+      </div>
+      <div class="hero__panel" aria-label="博客概览">
+        <strong>{posts.length}</strong>
+        <span>篇公开文章</span>
+        <strong>{tags.length}</strong>
+        <span>个常用标签</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="page-block">
+    <div class="container split-heading">
+      <div>
+        <h2 class="section-title">最近更新</h2>
+        <p class="muted">按发布时间整理的公开文章。</p>
+      </div>
+      <a class="text-link" href="/blog/">全部文章</a>
+    </div>
+    <div class="container post-grid">
+      {featuredPosts.map((post) => <PostCard post={post} />)}
+    </div>
+  </section>
+
+  <section class="page-block tag-band">
+    <div class="container">
+      <h2 class="section-title">标签</h2>
+      <div class="tag-list">
+        {tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag.name)}/`}>{tag.name} · {tag.count}</a>)}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding: 74px 0 42px;
+  }
+
+  .hero__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 32px;
+    align-items: end;
+  }
+
+  .hero__eyebrow {
+    margin: 0 0 12px;
+    color: var(--accent-strong);
+    font-weight: 700;
+  }
+
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 1.45rem + 4vw, 5rem);
+    line-height: 1.05;
+  }
+
+  .hero__copy > p:not(.hero__eyebrow) {
+    max-width: 620px;
+    margin: 22px 0 0;
+    color: var(--muted);
+    font-size: 1.15rem;
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 28px;
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .button--primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .button--ghost {
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .hero__panel {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 12px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+
+  .hero__panel strong {
+    color: var(--accent-strong);
+    font-size: 1.8rem;
+    line-height: 1;
+  }
+
+  .split-heading {
+    display: flex;
+    gap: 18px;
+    align-items: end;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  .split-heading p {
+    margin: 0;
+  }
+
+  .text-link {
+    font-weight: 700;
+  }
+
+  .post-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .tag-band {
+    background: color-mix(in srgb, var(--surface-muted), transparent 25%);
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  @media (max-width: 860px) {
+    .hero__inner,
+    .post-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hero {
+      padding-top: 46px;
+    }
+  }
+</style>

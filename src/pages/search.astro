@@ -1,0 +1,133 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="搜索" description="搜索公开文章。">
+  <section class="narrow page-block search-page">
+    <h1 class="section-title">搜索</h1>
+    <label class="search-box">
+      <span>关键词</span>
+      <input type="search" placeholder="搜索标题、摘要或标签" data-search-input />
+    </label>
+    <div class="search-results" data-search-results aria-live="polite"></div>
+  </section>
+</BaseLayout>
+
+<script>
+  type SearchItem = {
+    title: string;
+    description: string;
+    url: string;
+    tags: string[];
+    pubDate: string;
+  };
+
+  const input = document.querySelector<HTMLInputElement>("[data-search-input]");
+  const results = document.querySelector<HTMLElement>("[data-search-results]");
+
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      };
+      return entities[char];
+    });
+
+  const posts: SearchItem[] = await fetch("/search.json").then((response) =>
+    response.json()
+  );
+
+  const renderResults = (items: SearchItem[]) => {
+    if (!results) return;
+
+    if (items.length === 0) {
+      results.innerHTML = '<p class="muted">没有找到相关文章。</p>';
+      return;
+    }
+
+    results.innerHTML = items
+      .map(
+        (item) => `
+          <article class="search-result">
+            <a href="${item.url}">${escapeHtml(item.title)}</a>
+            <p>${escapeHtml(item.description)}</p>
+            <small>${escapeHtml(item.pubDate)} · ${escapeHtml(item.tags.join("、"))}</small>
+          </article>
+        `
+      )
+      .join("");
+  };
+
+  renderResults(posts);
+
+  input?.addEventListener("input", () => {
+    const keyword = input.value.trim().toLowerCase();
+    if (!keyword) {
+      renderResults(posts);
+      return;
+    }
+
+    renderResults(
+      posts.filter((post) =>
+        [post.title, post.description, post.tags.join(" ")]
+          .join(" ")
+          .toLowerCase()
+          .includes(keyword)
+      )
+    );
+  });
+</script>
+
+<style>
+  .search-box {
+    display: grid;
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .search-box span {
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .search-box input {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .search-results {
+    display: grid;
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  :global(.search-result) {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  :global(.search-result a) {
+    color: var(--text);
+    font-size: 1.12rem;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  :global(.search-result p) {
+    margin: 6px 0;
+    color: var(--muted);
+  }
+
+  :global(.search-result small) {
+    color: var(--muted);
+  }
+</style>

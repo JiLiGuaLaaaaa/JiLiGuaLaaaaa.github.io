@@ -1,0 +1,72 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { formatDate, getArchiveGroups, getPostSlug, getPublishedPosts } from "@/lib/posts";
+
+const groups = getArchiveGroups(await getPublishedPosts());
+---
+
+<BaseLayout title="归档" description="按年份浏览公开文章。">
+  <section class="narrow page-block">
+    <h1 class="section-title">归档</h1>
+    <p class="muted">按发布时间整理所有公开文章。</p>
+    <div class="archive">
+      {
+        groups.map((group) => (
+          <section class="archive__year" aria-labelledby={`year-${group.year}`}>
+            <h2 id={`year-${group.year}`}>{group.year}</h2>
+            <ol>
+              {group.items.map((post) => (
+                <li>
+                  <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
+                  <a href={`/blog/${getPostSlug(post)}/`}>{post.data.title}</a>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ))
+      }
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .archive {
+    display: grid;
+    gap: 28px;
+    margin-top: 28px;
+  }
+
+  .archive__year h2 {
+    margin: 0 0 12px;
+    color: var(--accent-strong);
+  }
+
+  .archive__year ol {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .archive__year li {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 16px;
+    align-items: baseline;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .archive__year time {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  @media (max-width: 620px) {
+    .archive__year li {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+  }
+</style>

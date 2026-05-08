@@ -1,0 +1,143 @@
+<aside class="cursor-character" aria-hidden="true" data-cursor-character>
+  <div class="cursor-character__bubble">在看</div>
+  <svg class="cursor-character__svg" viewBox="0 0 180 180" role="img">
+    <g class="head" data-character-head>
+      <path
+        class="hair"
+        d="M38 77c4-35 26-55 55-55 33 0 55 24 57 60 1 20-7 38-22 50-12 10-27 15-44 13-33-4-52-27-46-68Z"
+      />
+      <path
+        class="face"
+        d="M43 85c1-31 19-51 47-51 30 0 49 22 49 53 0 34-20 56-49 56-30 0-48-24-47-58Z"
+      />
+      <path class="bang bang--left" d="M60 37c-9 13-14 27-15 45 15-13 26-25 35-45Z" />
+      <path class="bang bang--right" d="M100 34c16 12 25 28 31 49-20-12-32-27-42-48Z" />
+      <path class="ear ear--left" d="M44 80c-14-6-21-2-22 12-1 12 7 20 22 18Z" />
+      <path class="ear ear--right" d="M137 81c14-6 22-1 22 13 0 12-8 20-22 17Z" />
+      <g class="eye eye--left" data-character-eye>
+        <ellipse cx="72" cy="88" rx="11" ry="14" />
+        <circle cx="75" cy="84" r="4" />
+      </g>
+      <g class="eye eye--right" data-character-eye>
+        <ellipse cx="109" cy="88" rx="11" ry="14" />
+        <circle cx="112" cy="84" r="4" />
+      </g>
+      <path class="blush blush--left" d="M53 108c7-4 15-4 22 0" />
+      <path class="blush blush--right" d="M107 108c7-4 15-4 22 0" />
+      <path class="mouth" d="M82 118c5 6 13 6 18 0" />
+      <path class="collar" d="M65 147c14 10 36 10 50 0 5 8 9 16 11 26H54c2-10 6-18 11-26Z" />
+    </g>
+  </svg>
+</aside>
+
+<script>
+  const character = document.querySelector<HTMLElement>("[data-cursor-character]");
+  const head = character?.querySelector<SVGGElement>("[data-character-head]");
+  const eyes = character?.querySelectorAll<SVGGElement>("[data-character-eye]");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  if (character && head && eyes && !reduceMotion.matches) {
+    window.addEventListener(
+      "pointermove",
+      (event) => {
+        const rect = character.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 420));
+        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 320));
+
+        head.style.transform = `translate(${dx * 5}px, ${dy * 4}px) rotate(${dx * 3}deg)`;
+        eyes.forEach((eye) => {
+          eye.style.transform = `translate(${dx * 4}px, ${dy * 3}px)`;
+        });
+      },
+      { passive: true }
+    );
+  }
+</script>
+
+<style>
+  .cursor-character {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 15;
+    width: 116px;
+    pointer-events: none;
+  }
+
+  .cursor-character__bubble {
+    width: fit-content;
+    margin: 0 auto -4px;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.78rem;
+    box-shadow: var(--shadow);
+  }
+
+  .cursor-character__svg {
+    display: block;
+    filter: drop-shadow(0 12px 18px rgba(58, 36, 24, 0.2));
+  }
+
+  .head,
+  .eye {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 120ms ease-out;
+  }
+
+  .hair,
+  .bang {
+    fill: #46312d;
+  }
+
+  .face,
+  .ear {
+    fill: #ffd8c9;
+    stroke: #5d3c35;
+    stroke-width: 3;
+  }
+
+  .bang {
+    stroke: #5d3c35;
+    stroke-width: 2;
+  }
+
+  .eye ellipse {
+    fill: #472f34;
+  }
+
+  .eye circle {
+    fill: #fff;
+  }
+
+  .blush {
+    fill: none;
+    stroke: #f08a7d;
+    stroke-linecap: round;
+    stroke-width: 4;
+  }
+
+  .mouth {
+    fill: none;
+    stroke: #5d3c35;
+    stroke-linecap: round;
+    stroke-width: 3;
+  }
+
+  .collar {
+    fill: var(--accent);
+    stroke: #5d3c35;
+    stroke-width: 3;
+  }
+
+  @media (max-width: 760px), (prefers-reduced-motion: reduce) {
+    .cursor-character {
+      display: none;
+    }
+  }
+</style>

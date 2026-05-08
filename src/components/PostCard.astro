@@ -1,0 +1,62 @@
+---
+import type { BlogPost } from "@/lib/posts";
+import { formatDate, getPostSlug } from "@/lib/posts";
+
+interface Props {
+  post: BlogPost;
+}
+
+const { post } = Astro.props;
+const slug = getPostSlug(post);
+---
+
+<article class="post-card card">
+  <a class="post-card__title" href={`/blog/${slug}/`}>
+    <h2>{post.data.title}</h2>
+  </a>
+  <p class="post-card__description">{post.data.description}</p>
+  <footer class="post-card__meta">
+    <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
+    <div class="post-card__tags" aria-label="文章标签">
+      {post.data.tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>)}
+    </div>
+  </footer>
+</article>
+
+<style>
+  .post-card {
+    padding: 22px;
+  }
+
+  .post-card__title {
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .post-card__title h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    line-height: 1.35;
+  }
+
+  .post-card__description {
+    margin: 12px 0 18px;
+    color: var(--muted);
+  }
+
+  .post-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .post-card__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+</style>

@@ -1,0 +1,54 @@
+<button class="theme-toggle" type="button" aria-label="切换暗色模式" data-theme-toggle>
+  <span class="theme-toggle__icon" aria-hidden="true">☾</span>
+</button>
+
+<script>
+  const root = document.documentElement;
+  const button = document.querySelector<HTMLButtonElement>("[data-theme-toggle]");
+  const storageKey = "blog-theme";
+
+  const preferredTheme = () =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+  const applyTheme = (theme: string) => {
+    root.dataset.theme = theme;
+    button?.setAttribute(
+      "aria-label",
+      theme === "dark" ? "切换亮色模式" : "切换暗色模式"
+    );
+    const icon = button?.querySelector(".theme-toggle__icon");
+    if (icon) {
+      icon.textContent = theme === "dark" ? "☀" : "☾";
+    }
+  };
+
+  applyTheme(localStorage.getItem(storageKey) ?? preferredTheme());
+
+  button?.addEventListener("click", () => {
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem(storageKey, next);
+    applyTheme(next);
+  });
+</script>
+
+<style>
+  .theme-toggle {
+    display: inline-grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text);
+  }
+
+  .theme-toggle:hover {
+    border-color: var(--accent);
+  }
+
+  .theme-toggle__icon {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+</style>

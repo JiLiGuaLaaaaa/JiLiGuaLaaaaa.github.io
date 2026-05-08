@@ -1,0 +1,25 @@
+---
+import PostCard from "@/components/PostCard.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import { getPublishedPosts } from "@/lib/posts";
+
+const posts = await getPublishedPosts();
+---
+
+<BaseLayout title="博客" description="辣子鸡丁砂锅的全部公开文章。">
+  <section class="narrow page-block">
+    <h1 class="section-title">博客</h1>
+    <p class="muted">全部公开文章都在这里，草稿不会出现在生产页面中。</p>
+  </section>
+  <section class="container post-list" aria-label="文章列表">
+    {posts.map((post) => <PostCard post={post} />)}
+  </section>
+</BaseLayout>
+
+<style>
+  .post-list {
+    display: grid;
+    gap: 18px;
+    padding-bottom: 56px;
+  }
+</style>
