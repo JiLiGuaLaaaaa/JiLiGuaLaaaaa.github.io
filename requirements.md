@@ -343,6 +343,13 @@ draft: false
 - 舒适的文章阅读宽度
 - 足够的颜色对比度
 
+当前视觉调整要求：
+
+- 网站底色使用樱花粉色系
+- 背景图使用用户提供的二次元雪景图，项目路径为 `public/images/site-bg.jpg`
+- 背景图作为界面背景显示，透明度约 30%，不影响正文阅读
+- 如果背景图暂时不存在，页面应使用樱花粉渐变兜底
+
 可以加入但不要过度复杂化：
 
 - 阅读进度条
@@ -375,6 +382,15 @@ draft: false
 ```text
 src/components/CursorCharacter.astro
 ```
+
+当前小角色调整要求：
+
+- 优先使用用户提供的二次元角色图抠图结果，项目路径为 `public/images/mascot.png`
+- 小角色应比原 SVG 更好看，并保留轻量纯前端实现
+- 图片素材未准备好时，应有 SVG/CSS 兜底，不影响页面构建
+- 增加更多交互：鼠标视线跟随、点击问候、拖动位置、空闲眨眼或轻微浮动、隐藏/显示
+- 移动端隐藏或简化，不遮挡正文
+- 尊重 `prefers-reduced-motion`
 
 如果使用第三方 Live2D 模型或图片资源，必须确认许可证允许使用。
 
@@ -466,6 +482,8 @@ https://blog.20050619.xyz
 当前公开博客不要使用 ECS 部署。
 
 当前公开博客不要使用 Docker 部署。
+
+GitHub Pages 的 Build and deployment Source 必须选择 GitHub Actions。不要使用 Deploy from a branch 直接发布 Astro 源码，否则 GitHub Pages 会按 Jekyll 解析 `.astro` 文件并导致 YAML front matter 错误。
 
 ---
 

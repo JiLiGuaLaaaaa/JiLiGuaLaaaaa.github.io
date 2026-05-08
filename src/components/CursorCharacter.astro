@@ -1,40 +1,145 @@
-<aside class="cursor-character" aria-hidden="true" data-cursor-character>
-  <div class="cursor-character__bubble">在看</div>
-  <svg class="cursor-character__svg" viewBox="0 0 180 180" role="img">
-    <g class="head" data-character-head>
-      <path
-        class="hair"
-        d="M38 77c4-35 26-55 55-55 33 0 55 24 57 60 1 20-7 38-22 50-12 10-27 15-44 13-33-4-52-27-46-68Z"
-      />
-      <path
-        class="face"
-        d="M43 85c1-31 19-51 47-51 30 0 49 22 49 53 0 34-20 56-49 56-30 0-48-24-47-58Z"
-      />
-      <path class="bang bang--left" d="M60 37c-9 13-14 27-15 45 15-13 26-25 35-45Z" />
-      <path class="bang bang--right" d="M100 34c16 12 25 28 31 49-20-12-32-27-42-48Z" />
-      <path class="ear ear--left" d="M44 80c-14-6-21-2-22 12-1 12 7 20 22 18Z" />
-      <path class="ear ear--right" d="M137 81c14-6 22-1 22 13 0 12-8 20-22 17Z" />
-      <g class="eye eye--left" data-character-eye>
-        <ellipse cx="72" cy="88" rx="11" ry="14" />
-        <circle cx="75" cy="84" r="4" />
+<aside class="cursor-character" aria-label="站点小助手" data-cursor-character>
+  <button class="cursor-character__hide" type="button" aria-label="隐藏小助手" data-character-hide>
+    ×
+  </button>
+  <div class="cursor-character__bubble" data-character-bubble>今天也要写点什么吗？</div>
+  <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
+    <img
+      class="cursor-character__image"
+      src="/images/mascot.png"
+      alt=""
+      loading="lazy"
+      decoding="async"
+      data-character-image
+    />
+    <svg class="cursor-character__fallback" viewBox="0 0 220 260" role="img" aria-label="二次元小助手">
+      <g class="fallback-head" data-character-head>
+        <path class="hair back-hair" d="M56 78c8-46 38-68 76-61 40 8 58 38 56 87-1 36-19 68-50 80-34 13-75-1-91-35-10-22-7-45 9-71Z" />
+        <path class="ribbon" d="M94 20c-28-12-45-4-56 18 24-2 43 4 58 16 12-16 32-21 58-14-12-23-32-29-60-20Z" />
+        <path class="face" d="M52 102c1-42 24-68 58-68 37 0 61 28 61 69 0 43-25 72-60 72-36 0-60-30-59-73Z" />
+        <path class="bang" d="M67 43c-12 18-19 37-19 61 22-19 38-38 49-64Z" />
+        <path class="bang bang-right" d="M116 35c24 17 38 40 46 72-28-18-45-39-60-70Z" />
+        <path class="side-lock left" d="M46 104c-18 31-17 72 5 108 4-30 10-63 24-93Z" />
+        <path class="side-lock right" d="M168 101c25 32 28 78 5 122-5-34-13-71-33-104Z" />
+        <g class="eye eye-left" data-character-eye>
+          <ellipse cx="88" cy="104" rx="12" ry="17" />
+          <circle cx="92" cy="98" r="5" />
+          <circle cx="85" cy="110" r="2.5" />
+        </g>
+        <g class="eye eye-right" data-character-eye>
+          <ellipse cx="132" cy="104" rx="12" ry="17" />
+          <circle cx="136" cy="98" r="5" />
+          <circle cx="129" cy="110" r="2.5" />
+        </g>
+        <path class="blush left" d="M66 130c9-6 20-6 30 0" />
+        <path class="blush right" d="M125 130c9-6 20-6 30 0" />
+        <path class="mouth" d="M101 142c7 8 18 8 25 0" />
+        <path class="body" d="M72 182c23 17 55 17 78 0 10 15 17 34 20 58H52c3-24 10-43 20-58Z" />
+        <path class="collar" d="M92 190l18 24 20-24" />
       </g>
-      <g class="eye eye--right" data-character-eye>
-        <ellipse cx="109" cy="88" rx="11" ry="14" />
-        <circle cx="112" cy="84" r="4" />
-      </g>
-      <path class="blush blush--left" d="M53 108c7-4 15-4 22 0" />
-      <path class="blush blush--right" d="M107 108c7-4 15-4 22 0" />
-      <path class="mouth" d="M82 118c5 6 13 6 18 0" />
-      <path class="collar" d="M65 147c14 10 36 10 50 0 5 8 9 16 11 26H54c2-10 6-18 11-26Z" />
-    </g>
-  </svg>
+    </svg>
+  </button>
 </aside>
+
+<button class="cursor-character-return" type="button" data-character-return aria-label="显示小助手">
+  助手
+</button>
 
 <script>
   const character = document.querySelector<HTMLElement>("[data-cursor-character]");
+  const stage = character?.querySelector<HTMLButtonElement>("[data-character-stage]");
+  const bubble = character?.querySelector<HTMLElement>("[data-character-bubble]");
+  const hideButton = character?.querySelector<HTMLButtonElement>("[data-character-hide]");
+  const returnButton = document.querySelector<HTMLButtonElement>("[data-character-return]");
+  const image = character?.querySelector<HTMLImageElement>("[data-character-image]");
+  const fallback = character?.querySelector<SVGElement>(".cursor-character__fallback");
   const head = character?.querySelector<SVGGElement>("[data-character-head]");
   const eyes = character?.querySelectorAll<SVGGElement>("[data-character-eye]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const positionKey = "blog-character-position";
+  const hiddenKey = "blog-character-hidden";
+  const messages = [
+    "今天也要写点什么吗？",
+    "我在右下角陪你。",
+    "点文章标题就能开看。",
+    "樱花粉模式启动。",
+    "记得不要提交密钥。"
+  ];
+  let messageIndex = 0;
+  let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
+
+  const say = (text?: string) => {
+    if (!bubble) return;
+    messageIndex = text ? messageIndex : (messageIndex + 1) % messages.length;
+    bubble.textContent = text ?? messages[messageIndex];
+    bubble.classList.remove("is-popping");
+    window.requestAnimationFrame(() => bubble.classList.add("is-popping"));
+  };
+
+  const setHidden = (hidden: boolean) => {
+    if (!character || !returnButton) return;
+    character.classList.toggle("is-hidden", hidden);
+    returnButton.classList.toggle("is-visible", hidden);
+    localStorage.setItem(hiddenKey, hidden ? "1" : "0");
+  };
+
+  const applyStoredPosition = () => {
+    if (!character) return;
+    const stored = localStorage.getItem(positionKey);
+    if (!stored) return;
+    const position = JSON.parse(stored) as { right: number; bottom: number };
+    character.style.right = `${Math.max(12, position.right)}px`;
+    character.style.bottom = `${Math.max(12, position.bottom)}px`;
+  };
+
+  image?.addEventListener("error", () => {
+    image.hidden = true;
+    fallback?.classList.add("is-visible");
+  });
+
+  image?.addEventListener("load", () => {
+    fallback?.classList.remove("is-visible");
+  });
+
+  stage?.addEventListener("click", () => say());
+  hideButton?.addEventListener("click", () => setHidden(true));
+  returnButton?.addEventListener("click", () => {
+    setHidden(false);
+    say("我回来啦。");
+  });
+
+  stage?.addEventListener("pointerdown", (event) => {
+    if (!character || event.button !== 0) return;
+    const styles = window.getComputedStyle(character);
+    dragStart = {
+      x: event.clientX,
+      y: event.clientY,
+      right: parseFloat(styles.right),
+      bottom: parseFloat(styles.bottom)
+    };
+    stage.setPointerCapture(event.pointerId);
+  });
+
+  stage?.addEventListener("pointermove", (event) => {
+    if (!character || !dragStart) return;
+    const nextRight = dragStart.right - (event.clientX - dragStart.x);
+    const nextBottom = dragStart.bottom - (event.clientY - dragStart.y);
+    character.style.right = `${Math.max(12, Math.min(window.innerWidth - 96, nextRight))}px`;
+    character.style.bottom = `${Math.max(12, Math.min(window.innerHeight - 140, nextBottom))}px`;
+  });
+
+  stage?.addEventListener("pointerup", () => {
+    if (!character || !dragStart) return;
+    const styles = window.getComputedStyle(character);
+    localStorage.setItem(
+      positionKey,
+      JSON.stringify({
+        right: parseFloat(styles.right),
+        bottom: parseFloat(styles.bottom)
+      })
+    );
+    dragStart = null;
+  });
 
   if (character && head && eyes && !reduceMotion.matches) {
     window.addEventListener(
@@ -43,47 +148,133 @@
         const rect = character.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 420));
-        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 320));
+        const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 520));
+        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 420));
 
-        head.style.transform = `translate(${dx * 5}px, ${dy * 4}px) rotate(${dx * 3}deg)`;
+        character.style.setProperty("--look-x", `${dx * 9}px`);
+        character.style.setProperty("--look-y", `${dy * 7}px`);
+        head.style.transform = `translate(${dx * 5}px, ${dy * 4}px) rotate(${dx * 2.5}deg)`;
         eyes.forEach((eye) => {
-          eye.style.transform = `translate(${dx * 4}px, ${dy * 3}px)`;
+          eye.style.transform = `translate(${dx * 5}px, ${dy * 4}px)`;
         });
       },
       { passive: true }
     );
   }
+
+  applyStoredPosition();
+  setHidden(localStorage.getItem(hiddenKey) === "1");
+  window.setInterval(() => {
+    if (!document.hidden && !character?.classList.contains("is-hidden")) {
+      say(messages[messageIndex]);
+    }
+  }, 16000);
 </script>
 
 <style>
   .cursor-character {
+    --look-x: 0px;
+    --look-y: 0px;
     position: fixed;
     right: 18px;
     bottom: 18px;
     z-index: 15;
-    width: 116px;
+    width: 156px;
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease;
+  }
+
+  .cursor-character.is-hidden {
+    opacity: 0;
     pointer-events: none;
+    transform: translateY(16px) scale(0.92);
+  }
+
+  .cursor-character__hide {
+    position: absolute;
+    top: 30px;
+    right: 2px;
+    z-index: 2;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    line-height: 1;
   }
 
   .cursor-character__bubble {
-    width: fit-content;
-    margin: 0 auto -4px;
-    padding: 3px 9px;
+    position: relative;
+    width: max-content;
+    max-width: 190px;
+    margin: 0 auto 4px;
+    padding: 7px 10px;
     border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--muted);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface), white 12%);
+    color: var(--text);
     font-size: 0.78rem;
+    line-height: 1.35;
     box-shadow: var(--shadow);
+    transform-origin: bottom center;
   }
 
-  .cursor-character__svg {
+  .cursor-character__bubble::after {
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    width: 10px;
+    height: 10px;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: inherit;
+    content: "";
+    transform: translateX(-50%) rotate(45deg);
+  }
+
+  .cursor-character__bubble.is-popping {
+    animation: bubble-pop 360ms ease;
+  }
+
+  .cursor-character__stage {
+    position: relative;
     display: block;
-    filter: drop-shadow(0 12px 18px rgba(58, 36, 24, 0.2));
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    filter: drop-shadow(0 18px 20px rgba(122, 54, 83, 0.22));
+    touch-action: none;
   }
 
-  .head,
+  .cursor-character__image {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 210px;
+    object-fit: contain;
+    transform: translate(var(--look-x), var(--look-y));
+    transform-origin: center 70%;
+    transition: transform 120ms ease-out;
+    animation: floaty 4.8s ease-in-out infinite;
+  }
+
+  .cursor-character__fallback {
+    display: none;
+    width: 100%;
+    height: auto;
+    animation: floaty 4.8s ease-in-out infinite;
+  }
+
+  .cursor-character__fallback.is-visible {
+    display: block;
+  }
+
+  .fallback-head,
   .eye {
     transform-box: fill-box;
     transform-origin: center;
@@ -91,53 +282,104 @@
   }
 
   .hair,
-  .bang {
-    fill: #46312d;
+  .bang,
+  .side-lock {
+    fill: #3b2639;
   }
 
-  .face,
-  .ear {
-    fill: #ffd8c9;
-    stroke: #5d3c35;
-    stroke-width: 3;
+  .back-hair {
+    fill: #4a2e4c;
   }
 
-  .bang {
-    stroke: #5d3c35;
-    stroke-width: 2;
+  .ribbon,
+  .body {
+    fill: #e85c8f;
+    stroke: #5f2b43;
+    stroke-width: 4;
+  }
+
+  .face {
+    fill: #ffe0d5;
+    stroke: #5f2b43;
+    stroke-width: 4;
   }
 
   .eye ellipse {
-    fill: #472f34;
+    fill: #31598e;
   }
 
   .eye circle {
     fill: #fff;
   }
 
-  .blush {
+  .blush,
+  .mouth,
+  .collar {
     fill: none;
-    stroke: #f08a7d;
     stroke-linecap: round;
     stroke-width: 4;
   }
 
-  .mouth {
-    fill: none;
-    stroke: #5d3c35;
-    stroke-linecap: round;
-    stroke-width: 3;
+  .blush {
+    stroke: #ef8ca6;
   }
 
+  .mouth,
   .collar {
-    fill: var(--accent);
-    stroke: #5d3c35;
-    stroke-width: 3;
+    stroke: #5f2b43;
+  }
+
+  .cursor-character-return {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 15;
+    display: none;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  .cursor-character-return.is-visible {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  @keyframes floaty {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -7px;
+    }
+  }
+
+  @keyframes bubble-pop {
+    0% {
+      transform: scale(0.96);
+    }
+    60% {
+      transform: scale(1.04);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
 
   @media (max-width: 760px), (prefers-reduced-motion: reduce) {
-    .cursor-character {
+    .cursor-character,
+    .cursor-character-return {
       display: none;
+    }
+
+    .cursor-character__image,
+    .cursor-character__fallback {
+      animation: none;
     }
   }
 </style>

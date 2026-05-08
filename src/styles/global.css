@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
-  --bg: #fffaf3;
-  --surface: #ffffff;
-  --surface-muted: #fff2df;
-  --text: #27211d;
-  --muted: #6d5f54;
-  --border: #ead7c2;
-  --accent: #d84832;
-  --accent-strong: #a72b20;
-  --accent-soft: #ffe1d8;
-  --link: #246b72;
-  --shadow: 0 18px 45px rgba(91, 54, 28, 0.12);
+  --bg: #fff0f6;
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-muted: rgba(255, 223, 236, 0.78);
+  --text: #33242c;
+  --muted: #785d68;
+  --border: rgba(230, 160, 188, 0.56);
+  --accent: #e65d8f;
+  --accent-strong: #b93768;
+  --accent-soft: #ffd9e8;
+  --link: #246d83;
+  --shadow: 0 18px 45px rgba(144, 63, 103, 0.14);
   font-family:
     "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui,
     sans-serif;
@@ -18,16 +18,16 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #181615;
-  --surface: #24201d;
-  --surface-muted: #312a25;
-  --text: #f6eee5;
-  --muted: #c9b9aa;
-  --border: #46392f;
-  --accent: #ff7a59;
-  --accent-strong: #ff9b7f;
-  --accent-soft: #4a2c25;
-  --link: #75d2d6;
+  --bg: #201820;
+  --surface: rgba(43, 32, 43, 0.86);
+  --surface-muted: rgba(62, 42, 58, 0.8);
+  --text: #fff0f7;
+  --muted: #d8b9c9;
+  --border: rgba(197, 117, 152, 0.42);
+  --accent: #ff7bab;
+  --accent-strong: #ff9bc0;
+  --accent-soft: #5b2c44;
+  --link: #9adce9;
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
 }
 
@@ -53,11 +53,39 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(120deg, rgba(255, 225, 216, 0.72), transparent 34%),
-    radial-gradient(circle at 85% 12%, rgba(117, 210, 214, 0.22), transparent 28%);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 236, 244, 0.96),
+    rgba(255, 215, 233, 0.9) 42%,
+    rgba(237, 246, 255, 0.8)
+  );
   content: "";
   pointer-events: none;
+}
+
+body::after {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: url("/images/site-bg.jpg");
+  background-position: center;
+  background-size: cover;
+  content: "";
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] body::before {
+  background: linear-gradient(
+    135deg,
+    rgba(32, 24, 32, 0.94),
+    rgba(58, 35, 52, 0.9) 46%,
+    rgba(28, 43, 58, 0.82)
+  );
+}
+
+:root[data-theme="dark"] body::after {
+  opacity: 0.22;
 }
 
 a {

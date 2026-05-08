@@ -48,7 +48,12 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：原创 SVG/CSS/JS 实现，右下角显示，鼠标移动时视线跟随，移动端隐藏。
+- 二次元小角色：优先使用 `public/images/mascot.png` 透明抠图，支持鼠标视线跟随、点击问候、拖动位置和隐藏；图片缺失时使用内置 SVG 兜底，移动端隐藏。
+
+图片资源放在 `public/images/`：
+
+- `site-bg.jpg`：页面背景图，显示时约 30% 透明度。
+- `mascot.png`：右下角小角色抠图，建议透明 PNG。
 
 ## 部署
 
@@ -63,6 +68,10 @@ GitHub Actions 工作流位于 `.github/workflows/deploy.yml`。
 5. 发布到 GitHub Pages。
 
 GitHub Pages 需要在仓库设置里启用 Pages，并选择 GitHub Actions 作为构建和部署来源。
+
+如果 Actions 日志里出现 `GitHub Pages: jekyll` 或 `.astro` 文件的 YAML front matter 错误，说明 Pages 仍在使用 `Deploy from a branch`。需要进入仓库 `Settings -> Pages`，把 `Build and deployment -> Source` 改成 `GitHub Actions`。
+
+`public/.nojekyll` 会随构建产物一起发布，用来明确告诉 GitHub Pages 不要按 Jekyll 处理静态产物。
 
 ## Cloudflare 和 CNAME
 
