@@ -93,6 +93,12 @@
   };
 
   image?.addEventListener("error", () => {
+    if (image.dataset.fallbackTried !== "1") {
+      image.dataset.fallbackTried = "1";
+      image.src = "/images/mascot.jpg";
+      return;
+    }
+
     image.hidden = true;
     fallback?.classList.add("is-visible");
   });
@@ -256,6 +262,7 @@
     width: 100%;
     height: auto;
     max-height: 210px;
+    border-radius: 12px;
     object-fit: contain;
     transform: translate(var(--look-x), var(--look-y));
     transform-origin: center 70%;

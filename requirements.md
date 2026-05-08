@@ -385,7 +385,8 @@ src/components/CursorCharacter.astro
 
 当前小角色调整要求：
 
-- 优先使用用户提供的二次元角色图抠图结果，项目路径为 `public/images/mascot.png`
+- 优先使用用户提供的二次元角色图抠图结果，推荐项目路径为 `public/images/mascot.png`
+- 如果暂时只有未透明抠图 JPG，则使用 `public/images/mascot.jpg`，以后可替换为透明 PNG
 - 小角色应比原 SVG 更好看，并保留轻量纯前端实现
 - 图片素材未准备好时，应有 SVG/CSS 兜底，不影响页面构建
 - 增加更多交互：鼠标视线跟随、点击问候、拖动位置、空闲眨眼或轻微浮动、隐藏/显示

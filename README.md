@@ -54,6 +54,7 @@ draft: false
 
 - `site-bg.jpg`：页面背景图，显示时约 30% 透明度。
 - `mascot.png`：右下角小角色抠图，建议透明 PNG。
+- `mascot.jpg`：临时小角色图片；如果没有透明 PNG，会自动使用这个文件。
 
 ## 部署
 
