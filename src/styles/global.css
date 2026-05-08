@@ -1,8 +1,8 @@
 :root {
   color-scheme: light;
   --bg: #fff0f6;
-  --surface: rgba(255, 255, 255, 0.84);
-  --surface-muted: rgba(255, 223, 236, 0.78);
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-muted: rgba(255, 223, 236, 0.84);
   --text: #33242c;
   --muted: #785d68;
   --border: rgba(230, 160, 188, 0.56);
@@ -19,8 +19,8 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #201820;
-  --surface: rgba(43, 32, 43, 0.86);
-  --surface-muted: rgba(62, 42, 58, 0.8);
+  --surface: rgba(43, 32, 43, 0.9);
+  --surface-muted: rgba(62, 42, 58, 0.86);
   --text: #fff0f7;
   --muted: #d8b9c9;
   --border: rgba(197, 117, 152, 0.42);
@@ -71,7 +71,7 @@ body::after {
   background-position: center;
   background-size: cover;
   content: "";
-  opacity: 0.3;
+  opacity: 0.45;
   pointer-events: none;
 }
 
@@ -85,7 +85,7 @@ body::after {
 }
 
 :root[data-theme="dark"] body::after {
-  opacity: 0.22;
+  opacity: 0.34;
 }
 
 a {

@@ -48,12 +48,13 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：优先使用 `public/images/mascot.png` 透明抠图，支持鼠标视线跟随、点击问候、拖动位置和隐藏；图片缺失时使用内置 SVG 兜底，移动端隐藏。
+- 二次元小角色：优先使用 `public/images/mascot-cutout.png` 透明抠图，支持鼠标视线跟随、点击问候、点击动作、拖动位置和隐藏；图片缺失时使用内置 SVG 兜底，移动端隐藏。
 
 图片资源放在 `public/images/`：
 
 - `site-bg.jpg`：页面背景图，显示时约 30% 透明度。
-- `mascot.png`：右下角小角色抠图，建议透明 PNG。
+- `mascot-cutout.png`：从人物图抠出的独立透明小人，当前优先使用。
+- `mascot.png`：可手动替换的右下角小角色抠图，建议透明 PNG。
 - `mascot.jpg`：临时小角色图片；如果没有透明 PNG，会自动使用这个文件。
 
 ## 部署

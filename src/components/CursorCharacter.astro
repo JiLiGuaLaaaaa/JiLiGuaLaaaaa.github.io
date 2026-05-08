@@ -6,7 +6,7 @@
   <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
     <img
       class="cursor-character__image"
-      src="/images/mascot.png"
+      src="/images/mascot-cutout.png"
       alt=""
       loading="lazy"
       decoding="async"
@@ -93,8 +93,14 @@
   };
 
   image?.addEventListener("error", () => {
-    if (image.dataset.fallbackTried !== "1") {
-      image.dataset.fallbackTried = "1";
+    if (image.dataset.fallbackTried !== "png") {
+      image.dataset.fallbackTried = "png";
+      image.src = "/images/mascot.png";
+      return;
+    }
+
+    if (image.dataset.fallbackTried !== "jpg") {
+      image.dataset.fallbackTried = "jpg";
       image.src = "/images/mascot.jpg";
       return;
     }
@@ -107,7 +113,11 @@
     fallback?.classList.remove("is-visible");
   });
 
-  stage?.addEventListener("click", () => say());
+  stage?.addEventListener("click", () => {
+    say();
+    character?.classList.remove("is-waving");
+    window.requestAnimationFrame(() => character?.classList.add("is-waving"));
+  });
   hideButton?.addEventListener("click", () => setHidden(true));
   returnButton?.addEventListener("click", () => {
     setHidden(false);
@@ -262,12 +272,13 @@
     width: 100%;
     height: auto;
     max-height: 210px;
-    border-radius: 12px;
     object-fit: contain;
     transform: translate(var(--look-x), var(--look-y));
-    transform-origin: center 70%;
+    transform-origin: center bottom;
     transition: transform 120ms ease-out;
-    animation: floaty 4.8s ease-in-out infinite;
+    animation:
+      floaty 4.8s ease-in-out infinite,
+      breathe 3.6s ease-in-out infinite;
   }
 
   .cursor-character__fallback {
@@ -279,6 +290,13 @@
 
   .cursor-character__fallback.is-visible {
     display: block;
+  }
+
+  .cursor-character.is-waving .cursor-character__image,
+  .cursor-character.is-waving .cursor-character__fallback {
+    animation:
+      wave 720ms ease,
+      floaty 4.8s ease-in-out infinite;
   }
 
   .fallback-head,
@@ -363,6 +381,32 @@
     }
     50% {
       translate: 0 -7px;
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      scale: 1;
+    }
+    50% {
+      scale: 1.018;
+    }
+  }
+
+  @keyframes wave {
+    0%,
+    100% {
+      rotate: 0deg;
+      scale: 1;
+    }
+    30% {
+      rotate: -4deg;
+      scale: 1.04;
+    }
+    62% {
+      rotate: 4deg;
+      scale: 1.02;
     }
   }
 
