@@ -48,15 +48,16 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：使用 `public/images/mascot-frames/` 中的动作帧，支持鼠标视线方向切换、空闲眨眼、点击挥手、拖动位置和隐藏；移动端隐藏，不连接后端。
+- 二次元小角色：使用 `public/images/mascot-frames/` 中的动作帧，支持鼠标视线方向切换、正面空闲眨眼、点击挥手、拖动位置和隐藏；移动端隐藏，不连接后端。
 
 图片资源放在 `public/images/`：
 
 - `site-bg.jpg`：页面背景图，显示时约 30% 透明度。
-- `mascot-frames/look/`：九宫格视线方向帧，用于根据鼠标位置切换小人朝向。
-- `mascot-frames/blink/`：眨眼帧，用于空闲眨眼动画。
+- `mascot-frames/look/`：九宫格视线方向帧，用于根据鼠标位置切换小人朝向；右向帧由左向帧镜像生成，保证左右一致。
+- `mascot-frames/blink/`：眨眼帧，只在小人处于正面并且鼠标短时间未移动时播放，避免侧向视角突然跳回正面。
 - `mascot-frames/wave/`：打招呼帧，用于点击或显示时的挥手动作。
-- `mascot-frames/preview.jpg`：动作帧预览图，只用于本地检查。
+- 所有动作帧统一为同一画布和同一底部基线，避免动作之间忽大忽小。
+- `mascot-frames/preview.jpg`：动作帧预览图，只用于本地检查，不提交到仓库。
 
 ## 部署
 

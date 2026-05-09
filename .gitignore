@@ -1,5 +1,7 @@
 node_modules/
 .pnpm-store/
+.venv/
+.uv-cache/
 dist/
 .astro/
 .vercel/

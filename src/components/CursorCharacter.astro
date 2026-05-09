@@ -68,9 +68,13 @@
     "记得不要提交密钥。"
   ];
   const framePreloads = [...Object.values(lookFrames), ...blinkFrames, ...waveFrames];
+  type LookFrameName = keyof typeof lookFrames;
+  type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
+  let currentAction: CharacterAction = "idle";
   let messageIndex = 0;
   let animationToken = 0;
+  let lastPointerAt = performance.now();
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
   let didDrag = false;
 
@@ -106,8 +110,10 @@
   };
 
   const pickLookFrame = (dx: number, dy: number): keyof typeof lookFrames => {
-    const horizontal = Math.abs(dx) < 0.22 ? "" : dx < 0 ? "left" : "right";
-    const vertical = Math.abs(dy) < 0.22 ? "" : dy < 0 ? "up" : "down";
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const horizontal = absX < 0.26 ? "" : dx < 0 ? "left" : "right";
+    const vertical = absY < 0.36 || absY < absX * 0.75 ? "" : dy < 0 ? "up" : "down";
 
     if (vertical && horizontal) return `${vertical}-${horizontal}` as keyof typeof lookFrames;
     if (vertical) return vertical as keyof typeof lookFrames;
@@ -115,9 +121,22 @@
     return "center";
   };
 
-  const playFrames = async (frames: string[], delay = 95) => {
+  const setLook = (look: LookFrameName, forceFrame = false) => {
+    currentLook = look;
+    if (currentAction === "idle" || forceFrame) {
+      setFrame(lookFrames[currentLook]);
+    }
+  };
+
+  const playFrames = async (
+    frames: string[],
+    action: CharacterAction,
+    delay = 95,
+    returnLook: LookFrameName = currentLook
+  ) => {
     if (!frame || reduceMotion.matches) return;
     const token = ++animationToken;
+    currentAction = action;
     character?.classList.remove("is-animating");
     character?.classList.add("is-animating");
     for (const src of frames) {
@@ -126,19 +145,36 @@
       await wait(delay);
     }
     if (token === animationToken) {
-      setFrame(lookFrames[currentLook]);
+      currentAction = "idle";
+      setLook(returnLook, true);
       character?.classList.remove("is-animating");
     }
   };
 
   const playBlink = () => {
     if (character?.classList.contains("is-hidden")) return;
-    void playFrames(blinkFrames, 74);
+    if (document.hidden || currentAction !== "idle" || currentLook !== "center") return;
+    if (performance.now() - lastPointerAt < 1800) return;
+    void playFrames(
+      [
+        lookFrames.center,
+        blinkFrames[1],
+        blinkFrames[2],
+        blinkFrames[3],
+        blinkFrames[2],
+        blinkFrames[1],
+        lookFrames.center
+      ],
+      "blink",
+      68,
+      "center"
+    );
   };
 
   const playWave = () => {
     say();
-    void playFrames([...waveFrames, ...waveFrames.slice().reverse()], 82);
+    setLook("center", true);
+    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 82, "center");
   };
 
   framePreloads.forEach((src) => {
@@ -166,7 +202,8 @@
   returnButton?.addEventListener("click", () => {
     setHidden(false);
     say("我回来啦。");
-    void playFrames(waveFrames.slice(0, 4), 90);
+    setLook("center", true);
+    void playFrames([...waveFrames.slice(0, 5), lookFrames.center], "wave", 90, "center");
   });
 
   stage?.addEventListener("pointerdown", (event) => {
@@ -208,7 +245,8 @@
     window.addEventListener(
       "pointermove",
       (event) => {
-        if (dragStart || character.classList.contains("is-animating")) return;
+        lastPointerAt = performance.now();
+        if (dragStart || currentAction !== "idle") return;
         const rect = character.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
@@ -217,8 +255,7 @@
         const nextLook = pickLookFrame(dx, dy);
 
         if (nextLook !== currentLook) {
-          currentLook = nextLook;
-          setFrame(lookFrames[currentLook]);
+          setLook(nextLook);
         }
       },
       { passive: true }
