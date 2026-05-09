@@ -12,6 +12,10 @@
       decoding="async"
       data-character-frame
     />
+    <span class="cursor-character__blink" aria-hidden="true">
+      <span class="cursor-character__eyelid cursor-character__eyelid--left"></span>
+      <span class="cursor-character__eyelid cursor-character__eyelid--right"></span>
+    </span>
     <span class="cursor-character__missing" data-character-missing>小助手素材加载失败</span>
   </button>
 </aside>
@@ -43,21 +47,21 @@
     "down-left": `${frameBase}/look/down-left.png`,
     "down-right": `${frameBase}/look/down-right.png`
   } as const;
-  const blinkFrames = [
-    `${frameBase}/blink/open.png`,
-    `${frameBase}/blink/half-1.png`,
-    `${frameBase}/blink/half-2.png`,
-    `${frameBase}/blink/closed.png`,
-    `${frameBase}/blink/open-2.png`
-  ];
   const waveFrames = [
     `${frameBase}/wave/wave-0.png`,
+    `${frameBase}/wave/wave-0-to-1.png`,
     `${frameBase}/wave/wave-1.png`,
+    `${frameBase}/wave/wave-1-to-2.png`,
     `${frameBase}/wave/wave-2.png`,
+    `${frameBase}/wave/wave-2-to-3.png`,
     `${frameBase}/wave/wave-3.png`,
+    `${frameBase}/wave/wave-3-to-4.png`,
     `${frameBase}/wave/wave-4.png`,
+    `${frameBase}/wave/wave-4-to-5.png`,
     `${frameBase}/wave/wave-5.png`,
+    `${frameBase}/wave/wave-5-to-6.png`,
     `${frameBase}/wave/wave-6.png`,
+    `${frameBase}/wave/wave-6-to-7.png`,
     `${frameBase}/wave/wave-7.png`
   ];
   const messages = [
@@ -67,7 +71,7 @@
     "樱花粉模式启动。",
     "记得不要提交密钥。"
   ];
-  const framePreloads = [...Object.values(lookFrames), ...blinkFrames, ...waveFrames];
+  const framePreloads = [...Object.values(lookFrames), ...waveFrames];
   type LookFrameName = keyof typeof lookFrames;
   type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
@@ -112,8 +116,9 @@
   const pickLookFrame = (dx: number, dy: number): keyof typeof lookFrames => {
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    const horizontal = absX < 0.26 ? "" : dx < 0 ? "left" : "right";
-    const vertical = absY < 0.36 || absY < absX * 0.75 ? "" : dy < 0 ? "up" : "down";
+    const straightVertical = absY >= 0.34 && absX < 0.22;
+    const horizontal = straightVertical || absX < 0.26 ? "" : dx < 0 ? "left" : "right";
+    const vertical = absY < 0.30 || (!straightVertical && absY < absX * 0.68) ? "" : dy < 0 ? "up" : "down";
 
     if (vertical && horizontal) return `${vertical}-${horizontal}` as keyof typeof lookFrames;
     if (vertical) return vertical as keyof typeof lookFrames;
@@ -155,26 +160,22 @@
     if (character?.classList.contains("is-hidden")) return;
     if (document.hidden || currentAction !== "idle" || currentLook !== "center") return;
     if (performance.now() - lastPointerAt < 1800) return;
-    void playFrames(
-      [
-        lookFrames.center,
-        blinkFrames[1],
-        blinkFrames[2],
-        blinkFrames[3],
-        blinkFrames[2],
-        blinkFrames[1],
-        lookFrames.center
-      ],
-      "blink",
-      68,
-      "center"
-    );
+    const token = ++animationToken;
+    currentAction = "blink";
+    setLook("center", true);
+    character?.classList.add("is-blinking");
+    window.setTimeout(() => {
+      if (token !== animationToken) return;
+      character?.classList.remove("is-blinking");
+      currentAction = "idle";
+      setLook("center", true);
+    }, 360);
   };
 
   const playWave = () => {
     say();
     setLook("center", true);
-    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 82, "center");
+    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 58, "center");
   };
 
   framePreloads.forEach((src) => {
@@ -203,7 +204,7 @@
     setHidden(false);
     say("我回来啦。");
     setLook("center", true);
-    void playFrames([...waveFrames.slice(0, 5), lookFrames.center], "wave", 90, "center");
+    void playFrames([...waveFrames.slice(0, 7), lookFrames.center], "wave", 62, "center");
   });
 
   stage?.addEventListener("pointerdown", (event) => {
@@ -250,8 +251,8 @@
         const rect = character.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 520));
-        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 380));
+        const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 430));
+        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 300));
         const nextLook = pickLookFrame(dx, dy);
 
         if (nextLook !== currentLook) {
@@ -367,6 +368,44 @@
     animation: floaty 4.8s ease-in-out infinite;
   }
 
+  .cursor-character__blink {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .cursor-character__eyelid {
+    position: absolute;
+    top: 45.9%;
+    width: 11.2%;
+    height: 1.9%;
+    border-bottom: 2px solid rgba(50, 24, 42, 0.82);
+    border-radius: 999px;
+    background: color-mix(in srgb, #fee8df, white 12%);
+    transform: scaleY(0.08);
+    transform-origin: top center;
+    filter: drop-shadow(0 1px 1px rgba(122, 54, 83, 0.16));
+  }
+
+  .cursor-character__eyelid--left {
+    left: 34.9%;
+    rotate: -3deg;
+  }
+
+  .cursor-character__eyelid--right {
+    left: 53.9%;
+    rotate: 3deg;
+  }
+
+  .cursor-character.is-blinking .cursor-character__blink {
+    opacity: 1;
+  }
+
+  .cursor-character.is-blinking .cursor-character__eyelid {
+    animation: eye-blink 360ms ease-in-out;
+  }
+
   .cursor-character.is-animating .cursor-character__frame {
     animation: bounce-wave 680ms ease, floaty 4.8s ease-in-out infinite;
   }
@@ -434,6 +473,19 @@
     }
     100% {
       transform: scale(1);
+    }
+  }
+
+  @keyframes eye-blink {
+    0%,
+    100% {
+      transform: scaleY(0.08);
+      opacity: 0;
+    }
+    28%,
+    68% {
+      transform: scaleY(1);
+      opacity: 0.96;
     }
   }
 

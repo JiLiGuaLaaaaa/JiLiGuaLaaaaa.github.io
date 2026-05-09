@@ -2,6 +2,8 @@ node_modules/
 .pnpm-store/
 .venv/
 .uv-cache/
+__pycache__/
+*.pyc
 dist/
 .astro/
 .vercel/
@@ -22,6 +24,8 @@ character.jpg
 ChatGPT Image*.png
 public/images/mascot-cutout-preview.png
 public/images/mascot-frames/preview.jpg
+public/images/mascot-frames/eye-grid.jpg
+public/images/mascot-frames/candidate*.png
 
 npm-debug.log*
 pnpm-debug.log*
