@@ -391,7 +391,7 @@ src/components/CursorCharacter.astro
 - 如果抠图资源不可用，则依次回退到 `public/images/mascot.png`、`public/images/mascot.jpg` 和内置 SVG
 - 小角色应比原 SVG 更好看，并保留轻量纯前端实现
 - 图片素材未准备好时，应有 SVG/CSS 兜底，不影响页面构建
-- 增加更多交互：鼠标视线跟随、点击问候、拖动位置、空闲眨眼或轻微浮动、点击动作反馈、隐藏/显示
+- 增加更多交互：鼠标视线跟随、根据鼠标位置抬头/低头/左右转头形成侧脸感、点击问候、拖动位置、空闲眨眼或轻微浮动、点击动作反馈、隐藏/显示
 - 移动端隐藏或简化，不遮挡正文
 - 尊重 `prefers-reduced-motion`
 

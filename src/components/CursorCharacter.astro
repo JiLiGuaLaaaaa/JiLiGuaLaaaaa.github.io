@@ -169,6 +169,10 @@
 
         character.style.setProperty("--look-x", `${dx * 9}px`);
         character.style.setProperty("--look-y", `${dy * 7}px`);
+        character.style.setProperty("--turn-y", `${dx * 15}deg`);
+        character.style.setProperty("--turn-x", `${dy * -12}deg`);
+        character.style.setProperty("--tilt", `${dx * -4}deg`);
+        character.style.setProperty("--look-x-p", String(dx));
         head.style.transform = `translate(${dx * 5}px, ${dy * 4}px) rotate(${dx * 2.5}deg)`;
         eyes.forEach((eye) => {
           eye.style.transform = `translate(${dx * 5}px, ${dy * 4}px)`;
@@ -191,11 +195,15 @@
   .cursor-character {
     --look-x: 0px;
     --look-y: 0px;
+    --turn-x: 0deg;
+    --turn-y: 0deg;
+    --tilt: 0deg;
     position: fixed;
     right: 18px;
     bottom: 18px;
     z-index: 15;
     width: 156px;
+    perspective: 700px;
     transition:
       opacity 180ms ease,
       transform 180ms ease;
@@ -265,9 +273,13 @@
     background: transparent;
     filter: drop-shadow(0 18px 20px rgba(122, 54, 83, 0.22));
     touch-action: none;
+    transform: rotateZ(var(--tilt)) rotateX(var(--turn-x)) rotateY(var(--turn-y));
+    transform-style: preserve-3d;
+    transition: transform 140ms ease-out;
   }
 
   .cursor-character__image {
+    position: relative;
     display: block;
     width: 100%;
     height: auto;
