@@ -58,6 +58,7 @@
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const positionKey = "blog-character-position";
   const hiddenKey = "blog-character-hidden";
+  const fallbackSources = ["/images/mascot.png", "/images/mascot.jpg"] as const;
   const messages = [
     "今天也要写点什么吗？",
     "我在右下角陪你。",
@@ -66,6 +67,7 @@
     "记得不要提交密钥。"
   ];
   let messageIndex = 0;
+  let fallbackIndex = 0;
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
 
   const say = (text?: string) => {
@@ -93,15 +95,9 @@
   };
 
   image?.addEventListener("error", () => {
-    if (image.dataset.fallbackTried !== "png") {
-      image.dataset.fallbackTried = "png";
-      image.src = "/images/mascot.png";
-      return;
-    }
-
-    if (image.dataset.fallbackTried !== "jpg") {
-      image.dataset.fallbackTried = "jpg";
-      image.src = "/images/mascot.jpg";
+    if (fallbackIndex < fallbackSources.length) {
+      image.src = fallbackSources[fallbackIndex];
+      fallbackIndex += 1;
       return;
     }
 
