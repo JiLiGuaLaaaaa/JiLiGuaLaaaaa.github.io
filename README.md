@@ -48,14 +48,15 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：优先使用 `public/images/mascot-cutout.png` 透明抠图，支持鼠标视线跟随、抬头/低头/左右转头形成侧脸感、点击问候、点击动作、拖动位置和隐藏；图片缺失时使用内置 SVG 兜底，移动端隐藏。
+- 二次元小角色：使用 `public/images/mascot-frames/` 中的动作帧，支持鼠标视线方向切换、空闲眨眼、点击挥手、拖动位置和隐藏；移动端隐藏，不连接后端。
 
 图片资源放在 `public/images/`：
 
 - `site-bg.jpg`：页面背景图，显示时约 30% 透明度。
-- `mascot-cutout.png`：从人物图抠出的独立透明小人，当前优先使用。
-- `mascot.png`：可手动替换的右下角小角色抠图，建议透明 PNG。
-- `mascot.jpg`：临时小角色图片；如果没有透明 PNG，会自动使用这个文件。
+- `mascot-frames/look/`：九宫格视线方向帧，用于根据鼠标位置切换小人朝向。
+- `mascot-frames/blink/`：眨眼帧，用于空闲眨眼动画。
+- `mascot-frames/wave/`：打招呼帧，用于点击或显示时的挥手动作。
+- `mascot-frames/preview.jpg`：动作帧预览图，只用于本地检查。
 
 ## 部署
 

@@ -17,7 +17,9 @@ diary/
 相关配置信息.txt
 back.png
 character.jpg
+ChatGPT Image*.png
 public/images/mascot-cutout-preview.png
+public/images/mascot-frames/preview.jpg
 
 npm-debug.log*
 pnpm-debug.log*

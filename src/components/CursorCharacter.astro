@@ -5,39 +5,14 @@
   <div class="cursor-character__bubble" data-character-bubble>今天也要写点什么吗？</div>
   <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
     <img
-      class="cursor-character__image"
-      src="/images/mascot-cutout.png"
+      class="cursor-character__frame"
+      src="/images/mascot-frames/look/center.png"
       alt=""
       loading="lazy"
       decoding="async"
-      data-character-image
+      data-character-frame
     />
-    <svg class="cursor-character__fallback" viewBox="0 0 220 260" role="img" aria-label="二次元小助手">
-      <g class="fallback-head" data-character-head>
-        <path class="hair back-hair" d="M56 78c8-46 38-68 76-61 40 8 58 38 56 87-1 36-19 68-50 80-34 13-75-1-91-35-10-22-7-45 9-71Z" />
-        <path class="ribbon" d="M94 20c-28-12-45-4-56 18 24-2 43 4 58 16 12-16 32-21 58-14-12-23-32-29-60-20Z" />
-        <path class="face" d="M52 102c1-42 24-68 58-68 37 0 61 28 61 69 0 43-25 72-60 72-36 0-60-30-59-73Z" />
-        <path class="bang" d="M67 43c-12 18-19 37-19 61 22-19 38-38 49-64Z" />
-        <path class="bang bang-right" d="M116 35c24 17 38 40 46 72-28-18-45-39-60-70Z" />
-        <path class="side-lock left" d="M46 104c-18 31-17 72 5 108 4-30 10-63 24-93Z" />
-        <path class="side-lock right" d="M168 101c25 32 28 78 5 122-5-34-13-71-33-104Z" />
-        <g class="eye eye-left" data-character-eye>
-          <ellipse cx="88" cy="104" rx="12" ry="17" />
-          <circle cx="92" cy="98" r="5" />
-          <circle cx="85" cy="110" r="2.5" />
-        </g>
-        <g class="eye eye-right" data-character-eye>
-          <ellipse cx="132" cy="104" rx="12" ry="17" />
-          <circle cx="136" cy="98" r="5" />
-          <circle cx="129" cy="110" r="2.5" />
-        </g>
-        <path class="blush left" d="M66 130c9-6 20-6 30 0" />
-        <path class="blush right" d="M125 130c9-6 20-6 30 0" />
-        <path class="mouth" d="M101 142c7 8 18 8 25 0" />
-        <path class="body" d="M72 182c23 17 55 17 78 0 10 15 17 34 20 58H52c3-24 10-43 20-58Z" />
-        <path class="collar" d="M92 190l18 24 20-24" />
-      </g>
-    </svg>
+    <span class="cursor-character__missing" data-character-missing>小助手素材加载失败</span>
   </button>
 </aside>
 
@@ -51,14 +26,40 @@
   const bubble = character?.querySelector<HTMLElement>("[data-character-bubble]");
   const hideButton = character?.querySelector<HTMLButtonElement>("[data-character-hide]");
   const returnButton = document.querySelector<HTMLButtonElement>("[data-character-return]");
-  const image = character?.querySelector<HTMLImageElement>("[data-character-image]");
-  const fallback = character?.querySelector<SVGElement>(".cursor-character__fallback");
-  const head = character?.querySelector<SVGGElement>("[data-character-head]");
-  const eyes = character?.querySelectorAll<SVGGElement>("[data-character-eye]");
+  const frame = character?.querySelector<HTMLImageElement>("[data-character-frame]");
+  const missing = character?.querySelector<HTMLElement>("[data-character-missing]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const positionKey = "blog-character-position";
   const hiddenKey = "blog-character-hidden";
-  const fallbackSources = ["/images/mascot.png", "/images/mascot.jpg"] as const;
+  const frameBase = "/images/mascot-frames";
+  const lookFrames = {
+    center: `${frameBase}/look/center.png`,
+    up: `${frameBase}/look/up.png`,
+    down: `${frameBase}/look/down.png`,
+    left: `${frameBase}/look/left.png`,
+    right: `${frameBase}/look/right.png`,
+    "up-left": `${frameBase}/look/up-left.png`,
+    "up-right": `${frameBase}/look/up-right.png`,
+    "down-left": `${frameBase}/look/down-left.png`,
+    "down-right": `${frameBase}/look/down-right.png`
+  } as const;
+  const blinkFrames = [
+    `${frameBase}/blink/open.png`,
+    `${frameBase}/blink/half-1.png`,
+    `${frameBase}/blink/half-2.png`,
+    `${frameBase}/blink/closed.png`,
+    `${frameBase}/blink/open-2.png`
+  ];
+  const waveFrames = [
+    `${frameBase}/wave/wave-0.png`,
+    `${frameBase}/wave/wave-1.png`,
+    `${frameBase}/wave/wave-2.png`,
+    `${frameBase}/wave/wave-3.png`,
+    `${frameBase}/wave/wave-4.png`,
+    `${frameBase}/wave/wave-5.png`,
+    `${frameBase}/wave/wave-6.png`,
+    `${frameBase}/wave/wave-7.png`
+  ];
   const messages = [
     "今天也要写点什么吗？",
     "我在右下角陪你。",
@@ -66,9 +67,19 @@
     "樱花粉模式启动。",
     "记得不要提交密钥。"
   ];
+  const framePreloads = [...Object.values(lookFrames), ...blinkFrames, ...waveFrames];
+  let currentLook: keyof typeof lookFrames = "center";
   let messageIndex = 0;
-  let fallbackIndex = 0;
+  let animationToken = 0;
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
+  let didDrag = false;
+
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const setFrame = (src: string) => {
+    if (!frame) return;
+    frame.src = src;
+  };
 
   const say = (text?: string) => {
     if (!bubble) return;
@@ -94,35 +105,74 @@
     character.style.bottom = `${Math.max(12, position.bottom)}px`;
   };
 
-  image?.addEventListener("error", () => {
-    if (fallbackIndex < fallbackSources.length) {
-      image.src = fallbackSources[fallbackIndex];
-      fallbackIndex += 1;
-      return;
-    }
+  const pickLookFrame = (dx: number, dy: number): keyof typeof lookFrames => {
+    const horizontal = Math.abs(dx) < 0.22 ? "" : dx < 0 ? "left" : "right";
+    const vertical = Math.abs(dy) < 0.22 ? "" : dy < 0 ? "up" : "down";
 
-    image.hidden = true;
-    fallback?.classList.add("is-visible");
+    if (vertical && horizontal) return `${vertical}-${horizontal}` as keyof typeof lookFrames;
+    if (vertical) return vertical as keyof typeof lookFrames;
+    if (horizontal) return horizontal as keyof typeof lookFrames;
+    return "center";
+  };
+
+  const playFrames = async (frames: string[], delay = 95) => {
+    if (!frame || reduceMotion.matches) return;
+    const token = ++animationToken;
+    character?.classList.remove("is-animating");
+    character?.classList.add("is-animating");
+    for (const src of frames) {
+      if (token !== animationToken) return;
+      setFrame(src);
+      await wait(delay);
+    }
+    if (token === animationToken) {
+      setFrame(lookFrames[currentLook]);
+      character?.classList.remove("is-animating");
+    }
+  };
+
+  const playBlink = () => {
+    if (character?.classList.contains("is-hidden")) return;
+    void playFrames(blinkFrames, 74);
+  };
+
+  const playWave = () => {
+    say();
+    void playFrames([...waveFrames, ...waveFrames.slice().reverse()], 82);
+  };
+
+  framePreloads.forEach((src) => {
+    const image = new Image();
+    image.src = src;
   });
 
-  image?.addEventListener("load", () => {
-    fallback?.classList.remove("is-visible");
+  frame?.addEventListener("error", () => {
+    if (!frame || !missing) return;
+    frame.hidden = true;
+    missing.classList.add("is-visible");
+  });
+
+  frame?.addEventListener("load", () => {
+    if (!frame || !missing) return;
+    frame.hidden = false;
+    missing.classList.remove("is-visible");
   });
 
   stage?.addEventListener("click", () => {
-    say();
-    character?.classList.remove("is-waving");
-    window.requestAnimationFrame(() => character?.classList.add("is-waving"));
+    if (didDrag) return;
+    playWave();
   });
   hideButton?.addEventListener("click", () => setHidden(true));
   returnButton?.addEventListener("click", () => {
     setHidden(false);
     say("我回来啦。");
+    void playFrames(waveFrames.slice(0, 4), 90);
   });
 
   stage?.addEventListener("pointerdown", (event) => {
     if (!character || event.button !== 0) return;
     const styles = window.getComputedStyle(character);
+    didDrag = false;
     dragStart = {
       x: event.clientX,
       y: event.clientY,
@@ -136,8 +186,9 @@
     if (!character || !dragStart) return;
     const nextRight = dragStart.right - (event.clientX - dragStart.x);
     const nextBottom = dragStart.bottom - (event.clientY - dragStart.y);
-    character.style.right = `${Math.max(12, Math.min(window.innerWidth - 96, nextRight))}px`;
-    character.style.bottom = `${Math.max(12, Math.min(window.innerHeight - 140, nextBottom))}px`;
+    didDrag = didDrag || Math.abs(event.clientX - dragStart.x) > 4 || Math.abs(event.clientY - dragStart.y) > 4;
+    character.style.right = `${Math.max(12, Math.min(window.innerWidth - 112, nextRight))}px`;
+    character.style.bottom = `${Math.max(12, Math.min(window.innerHeight - 160, nextBottom))}px`;
   });
 
   stage?.addEventListener("pointerup", () => {
@@ -153,26 +204,22 @@
     dragStart = null;
   });
 
-  if (character && head && eyes && !reduceMotion.matches) {
+  if (character && frame && !reduceMotion.matches) {
     window.addEventListener(
       "pointermove",
       (event) => {
+        if (dragStart || character.classList.contains("is-animating")) return;
         const rect = character.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
         const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 520));
-        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 420));
+        const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 380));
+        const nextLook = pickLookFrame(dx, dy);
 
-        character.style.setProperty("--look-x", `${dx * 9}px`);
-        character.style.setProperty("--look-y", `${dy * 7}px`);
-        character.style.setProperty("--turn-y", `${dx * 15}deg`);
-        character.style.setProperty("--turn-x", `${dy * -12}deg`);
-        character.style.setProperty("--tilt", `${dx * -4}deg`);
-        character.style.setProperty("--look-x-p", String(dx));
-        head.style.transform = `translate(${dx * 5}px, ${dy * 4}px) rotate(${dx * 2.5}deg)`;
-        eyes.forEach((eye) => {
-          eye.style.transform = `translate(${dx * 5}px, ${dy * 4}px)`;
-        });
+        if (nextLook !== currentLook) {
+          currentLook = nextLook;
+          setFrame(lookFrames[currentLook]);
+        }
       },
       { passive: true }
     );
@@ -180,6 +227,7 @@
 
   applyStoredPosition();
   setHidden(localStorage.getItem(hiddenKey) === "1");
+  window.setInterval(playBlink, 5200);
   window.setInterval(() => {
     if (!document.hidden && !character?.classList.contains("is-hidden")) {
       say(messages[messageIndex]);
@@ -189,17 +237,12 @@
 
 <style>
   .cursor-character {
-    --look-x: 0px;
-    --look-y: 0px;
-    --turn-x: 0deg;
-    --turn-y: 0deg;
-    --tilt: 0deg;
     position: fixed;
     right: 18px;
     bottom: 18px;
     z-index: 15;
-    width: 156px;
-    perspective: 700px;
+    width: min(172px, 22vw);
+    min-width: 132px;
     transition:
       opacity 180ms ease,
       transform 180ms ease;
@@ -231,7 +274,7 @@
     position: relative;
     width: max-content;
     max-width: 190px;
-    margin: 0 auto 4px;
+    margin: 0 auto -6px;
     padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -262,104 +305,47 @@
 
   .cursor-character__stage {
     position: relative;
-    display: block;
+    display: grid;
     width: 100%;
+    min-height: 176px;
+    place-items: end center;
     padding: 0;
     border: 0;
     background: transparent;
     filter: drop-shadow(0 18px 20px rgba(122, 54, 83, 0.22));
     touch-action: none;
-    transform: rotateZ(var(--tilt)) rotateX(var(--turn-x)) rotateY(var(--turn-y));
-    transform-style: preserve-3d;
-    transition: transform 140ms ease-out;
+    transition: transform 160ms ease-out;
   }
 
-  .cursor-character__image {
-    position: relative;
+  .cursor-character__stage:hover {
+    transform: translateY(-2px);
+  }
+
+  .cursor-character__frame {
     display: block;
     width: 100%;
-    height: auto;
-    max-height: 210px;
+    max-height: 248px;
     object-fit: contain;
-    transform: translate(var(--look-x), var(--look-y));
-    transform-origin: center bottom;
-    transition: transform 120ms ease-out;
-    animation:
-      floaty 4.8s ease-in-out infinite,
-      breathe 3.6s ease-in-out infinite;
-  }
-
-  .cursor-character__fallback {
-    display: none;
-    width: 100%;
-    height: auto;
+    object-position: center bottom;
     animation: floaty 4.8s ease-in-out infinite;
   }
 
-  .cursor-character__fallback.is-visible {
-    display: block;
+  .cursor-character.is-animating .cursor-character__frame {
+    animation: bounce-wave 680ms ease, floaty 4.8s ease-in-out infinite;
   }
 
-  .cursor-character.is-waving .cursor-character__image,
-  .cursor-character.is-waving .cursor-character__fallback {
-    animation:
-      wave 720ms ease,
-      floaty 4.8s ease-in-out infinite;
+  .cursor-character__missing {
+    display: none;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.78rem;
   }
 
-  .fallback-head,
-  .eye {
-    transform-box: fill-box;
-    transform-origin: center;
-    transition: transform 120ms ease-out;
-  }
-
-  .hair,
-  .bang,
-  .side-lock {
-    fill: #3b2639;
-  }
-
-  .back-hair {
-    fill: #4a2e4c;
-  }
-
-  .ribbon,
-  .body {
-    fill: #e85c8f;
-    stroke: #5f2b43;
-    stroke-width: 4;
-  }
-
-  .face {
-    fill: #ffe0d5;
-    stroke: #5f2b43;
-    stroke-width: 4;
-  }
-
-  .eye ellipse {
-    fill: #31598e;
-  }
-
-  .eye circle {
-    fill: #fff;
-  }
-
-  .blush,
-  .mouth,
-  .collar {
-    fill: none;
-    stroke-linecap: round;
-    stroke-width: 4;
-  }
-
-  .blush {
-    stroke: #ef8ca6;
-  }
-
-  .mouth,
-  .collar {
-    stroke: #5f2b43;
+  .cursor-character__missing.is-visible {
+    display: inline-block;
   }
 
   .cursor-character-return {
@@ -392,29 +378,13 @@
     }
   }
 
-  @keyframes breathe {
+  @keyframes bounce-wave {
     0%,
     100% {
       scale: 1;
     }
-    50% {
-      scale: 1.018;
-    }
-  }
-
-  @keyframes wave {
-    0%,
-    100% {
-      rotate: 0deg;
-      scale: 1;
-    }
-    30% {
-      rotate: -4deg;
-      scale: 1.04;
-    }
-    62% {
-      rotate: 4deg;
-      scale: 1.02;
+    45% {
+      scale: 1.035;
     }
   }
 
@@ -436,8 +406,7 @@
       display: none;
     }
 
-    .cursor-character__image,
-    .cursor-character__fallback {
+    .cursor-character__frame {
       animation: none;
     }
   }
