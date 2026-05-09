@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +14,16 @@ WAVE_SRC = ROOT / "ChatGPT Image 2026年5月9日 16_58_49.png"
 CANVAS = (520, 560)
 BASELINE = 548
 PREVIEW_CELL = (188, 182)
+WAVE_ARM_CUTS = [
+    (344, 220),
+    (342, 198),
+    (338, 174),
+    (334, 146),
+    (330, 122),
+    (328, 105),
+    (326, 95),
+    (324, 88),
+]
 
 
 def whiten_to_alpha(image: Image.Image) -> Image.Image:
@@ -121,6 +131,51 @@ def alpha_bbox(image: Image.Image, threshold: int = 8) -> tuple[int, int, int, i
     return bbox
 
 
+def repair_lower_garment_holes(
+    image: Image.Image,
+    *,
+    lower_start_ratio: float = 0.58,
+    margin_x: int = 22,
+    kernel_size: int = 19,
+    min_row_span: int = 110,
+    row_fill: bool = True,
+) -> Image.Image:
+    rgba = image.convert("RGBA")
+    alpha = rgba.getchannel("A")
+    closed = alpha.filter(ImageFilter.MaxFilter(kernel_size)).filter(ImageFilter.MinFilter(kernel_size))
+    alpha_pixels = alpha.load()
+    closed_pixels = closed.load()
+    width, height = rgba.size
+    bbox = alpha_bbox(rgba)
+    x_start = max(0, bbox[0] + margin_x)
+    x_end = min(width, bbox[2] - margin_x)
+    y_start = max(0, bbox[1] + round((bbox[3] - bbox[1]) * lower_start_ratio))
+
+    if x_end <= x_start or y_start >= bbox[3]:
+        return rgba
+
+    for y in range(y_start, bbox[3]):
+        for x in range(x_start, x_end):
+            if alpha_pixels[x, y] <= 8 and closed_pixels[x, y] > 8:
+                alpha_pixels[x, y] = 255
+
+    if row_fill:
+        row_fill_start = max(y_start, bbox[1] + round((bbox[3] - bbox[1]) * 0.5))
+        for y in range(row_fill_start, bbox[3]):
+            row_pixels = [x for x in range(x_start, x_end) if alpha_pixels[x, y] > 8]
+            if len(row_pixels) < 2:
+                continue
+            left_edge = row_pixels[0]
+            right_edge = row_pixels[-1]
+            if right_edge - left_edge < min_row_span:
+                continue
+            for x in range(left_edge, right_edge + 1):
+                alpha_pixels[x, y] = 255
+
+    rgba.putalpha(alpha)
+    return rgba
+
+
 def normalize_frame(
     image: Image.Image,
     *,
@@ -140,6 +195,38 @@ def normalize_frame(
     y = BASELINE - subject.height + y_shift
     canvas.alpha_composite(subject, (x, y))
     return canvas
+
+
+def build_stable_wave_frame(base: Image.Image, source: Image.Image, index: int) -> Image.Image:
+    frame = repair_lower_garment_holes(base)
+    source_rgba = source.convert("RGBA")
+    source_pixels = source_rgba.load()
+    mask = Image.new("L", CANVAS, 0)
+    mask_pixels = mask.load()
+    x_cut, y_cut = WAVE_ARM_CUTS[index]
+
+    for y in range(y_cut, CANVAS[1]):
+        dynamic_x_cut = x_cut
+        if y < 250:
+            dynamic_x_cut = max(dynamic_x_cut, 382)
+        elif y < 340:
+            dynamic_x_cut = max(dynamic_x_cut, 360)
+
+        for x in range(dynamic_x_cut, CANVAS[0]):
+            r, g, b, a = source_pixels[x, y]
+            if a <= 8:
+                continue
+            if max(r, g, b) < 88:
+                continue
+            edge_fade = min(1, max(0, (x - dynamic_x_cut) / 18))
+            if edge_fade <= 0:
+                continue
+            mask_pixels[x, y] = round(a * edge_fade)
+
+    overlay = Image.new("RGBA", CANVAS, (255, 255, 255, 0))
+    overlay.paste(source_rgba, (0, 0), mask)
+    frame.alpha_composite(overlay)
+    return repair_lower_garment_holes(frame, row_fill=False)
 
 
 def crop_grid(image: Image.Image, cols: int, rows: int, index: int) -> Image.Image:
@@ -175,11 +262,13 @@ def crop_wave_cell(image: Image.Image, index: int) -> Image.Image:
 
 
 def regenerate_wave_frames() -> None:
+    base = repair_lower_garment_holes(Image.open(OUT / "look" / "center.png").convert("RGBA"))
     wave_sheet = Image.open(WAVE_SRC).convert("RGBA")
     for index in range(8):
         crop = crop_wave_cell(wave_sheet, index)
         cleaned = remove_left_edge_fragments(whiten_to_alpha(crop))
-        frame = normalize_frame(cleaned, target_height=536, prepared_alpha=True)
+        source = normalize_frame(cleaned, target_height=536, prepared_alpha=True)
+        frame = build_stable_wave_frame(base, source, index)
         frame.save(OUT / "wave" / f"wave-{index}.png")
 
 
@@ -188,16 +277,22 @@ def refine_up_down_look_frames() -> None:
     # The provided 3x3 sheet contains clear straight-up at top-right and
     # straight-down at bottom-right. The middle-left/right cells are clearer
     # horizontal looks, so keep the previous mirror rule for those directions.
-    up = normalize_frame(crop_grid(look_sheet, 3, 3, 2), target_height=527)
+    center = repair_lower_garment_holes(Image.open(OUT / "look" / "center.png").convert("RGBA"))
+    center.save(OUT / "look" / "center.png")
+
+    up = repair_lower_garment_holes(normalize_frame(crop_grid(look_sheet, 3, 3, 2), target_height=527))
     w, h = look_sheet.size
     down_crop = look_sheet.crop((round(2 * w / 3), round(2 * h / 3) + 24, w, h))
-    down = normalize_frame(down_crop, target_height=527)
+    down = repair_lower_garment_holes(normalize_frame(down_crop, target_height=527))
     up.save(OUT / "look" / "up.png")
     down.save(OUT / "look" / "down.png")
 
-    left = Image.open(OUT / "look" / "left.png").convert("RGBA")
-    down_left = Image.open(OUT / "look" / "down-left.png").convert("RGBA")
-    up_left = Image.open(OUT / "look" / "up-left.png").convert("RGBA")
+    left = repair_lower_garment_holes(Image.open(OUT / "look" / "left.png").convert("RGBA"))
+    down_left = repair_lower_garment_holes(Image.open(OUT / "look" / "down-left.png").convert("RGBA"))
+    up_left = repair_lower_garment_holes(Image.open(OUT / "look" / "up-left.png").convert("RGBA"))
+    left.save(OUT / "look" / "left.png")
+    down_left.save(OUT / "look" / "down-left.png")
+    up_left.save(OUT / "look" / "up-left.png")
     ImageOps.mirror(left).save(OUT / "look" / "right.png")
     ImageOps.mirror(up_left).save(OUT / "look" / "up-right.png")
     ImageOps.mirror(down_left).save(OUT / "look" / "down-right.png")
