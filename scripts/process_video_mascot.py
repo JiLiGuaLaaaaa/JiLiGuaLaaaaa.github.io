@@ -21,9 +21,9 @@ LOOK_FRAME_IDS = {
     "center": 130,
     "up": 95,
     "down": 50,
-    "right": 70,
-    "down-right": 65,
-    "up-right": 85,
+    "left": 70,
+    "down-left": 65,
+    "up-left": 85,
 }
 BLINK_FRAME_IDS = {
     "open": 130,
@@ -33,6 +33,8 @@ BLINK_FRAME_IDS = {
     "open-2": 130,
 }
 WAVE_FRAME_IDS = [150, 155, 160, 165, 170, 180, 200, 230]
+LOOK_TRANSITION_STEPS = (0.25, 0.5, 0.75)
+BLINK_FACE_PATCH = (205, 238, 515, 392)
 
 
 def load_video_frames(frame_ids: set[int]) -> dict[int, Image.Image]:
@@ -68,13 +70,21 @@ def erase_watermark_zones(rgb: np.ndarray) -> np.ndarray:
     key = sample_green(clean)
     h, w = clean.shape[:2]
     zones = [
-        (0, 0, 340, 130),
-        (0, h - 135, 360, h),
-        (w - 340, 0, w, 130),
-        (w - 360, h - 145, w, h),
+        (0, 0, 320, 120),
+        (w - 320, 0, w, 120),
+        (w - 330, h - 130, w, h),
     ]
     for x1, y1, x2, y2 in zones:
-        clean[y1:y2, x1:x2] = key
+        region = clean[y1:y2, x1:x2]
+        data = region.astype(np.int16)
+        r = data[..., 0]
+        g = data[..., 1]
+        b = data[..., 2]
+        bright_neutral = (r > 145) & (g > 145) & (b > 145) & ((np.maximum.reduce([r, g, b]) - np.minimum.reduce([r, g, b])) < 58)
+        pale_text = (r > 120) & (g > 135) & (b > 105) & ((r + g + b) > 440)
+        neutral_text_edge = (r > 70) & (g > 70) & (b > 70) & ((np.maximum.reduce([r, g, b]) - np.minimum.reduce([r, g, b])) < 72)
+        mask = bright_neutral | pale_text | neutral_text_edge
+        region[mask] = key
     return clean
 
 
@@ -177,6 +187,22 @@ def keep_main_subject(image: Image.Image, *, alpha_threshold: int = 8) -> Image.
     return rgba
 
 
+def patch_blink_face(base: Image.Image, source: Image.Image) -> Image.Image:
+    patched = base.copy()
+    patch = source.crop(BLINK_FACE_PATCH)
+    mask = Image.new("L", patch.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle((0, 0, patch.width - 1, patch.height - 1), radius=38, fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(7))
+    patched.paste(patch, BLINK_FACE_PATCH[:2], mask)
+    patched.putalpha(base.getchannel("A"))
+    return patched
+
+
+def blend_frame(start: Image.Image, end: Image.Image, amount: float) -> Image.Image:
+    return Image.blend(start.convert("RGBA"), end.convert("RGBA"), amount)
+
+
 def normalize_frame(frame: Image.Image) -> Image.Image:
     keyed = green_to_alpha(frame)
     cropped = keyed.crop(SOURCE_ROI)
@@ -191,19 +217,29 @@ def normalize_frame(frame: Image.Image) -> Image.Image:
 
 
 def save_named_frames(frames: dict[int, Image.Image]) -> None:
-    for folder in ["look", "blink", "wave"]:
+    for folder in ["look", "look-transition", "blink", "wave"]:
         (OUT / folder).mkdir(parents=True, exist_ok=True)
 
     processed = {index: normalize_frame(frame) for index, frame in frames.items()}
 
     for name, frame_id in LOOK_FRAME_IDS.items():
         processed[frame_id].save(OUT / "look" / f"{name}.png")
-    ImageOps.mirror(processed[LOOK_FRAME_IDS["right"]]).save(OUT / "look" / "left.png")
-    ImageOps.mirror(processed[LOOK_FRAME_IDS["up-right"]]).save(OUT / "look" / "up-left.png")
-    ImageOps.mirror(processed[LOOK_FRAME_IDS["down-right"]]).save(OUT / "look" / "down-left.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["left"]]).save(OUT / "look" / "right.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["up-left"]]).save(OUT / "look" / "up-right.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["down-left"]]).save(OUT / "look" / "down-right.png")
 
+    look_images = {path.stem: Image.open(path).convert("RGBA") for path in (OUT / "look").glob("*.png")}
+    center = look_images["center"]
+    for name, image in look_images.items():
+        if name == "center":
+            continue
+        for index, amount in enumerate(LOOK_TRANSITION_STEPS, start=1):
+            blend_frame(center, image, amount).save(OUT / "look-transition" / f"to-{name}-{index}.png")
+
+    blink_base = processed[BLINK_FRAME_IDS["open"]]
     for name, frame_id in BLINK_FRAME_IDS.items():
-        processed[frame_id].save(OUT / "blink" / f"{name}.png")
+        image = blink_base if name in {"open", "open-2"} else patch_blink_face(blink_base, processed[frame_id])
+        image.save(OUT / "blink" / f"{name}.png")
 
     for index, frame_id in enumerate(WAVE_FRAME_IDS):
         processed[frame_id].save(OUT / "wave" / f"wave-{index}.png")
@@ -212,6 +248,7 @@ def save_named_frames(frames: dict[int, Image.Image]) -> None:
 def build_preview() -> None:
     files = [
         *(OUT / "look").glob("*.png"),
+        *(OUT / "look-transition").glob("*.png"),
         *(OUT / "blink").glob("*.png"),
         *(OUT / "wave").glob("*.png"),
     ]
@@ -244,7 +281,12 @@ def build_preview() -> None:
 
 
 def audit() -> None:
-    files = sorted([*(OUT / "look").glob("*.png"), *(OUT / "blink").glob("*.png"), *(OUT / "wave").glob("*.png")])
+    files = sorted([
+        *(OUT / "look").glob("*.png"),
+        *(OUT / "look-transition").glob("*.png"),
+        *(OUT / "blink").glob("*.png"),
+        *(OUT / "wave").glob("*.png"),
+    ])
     sizes = set()
     bottoms = set()
     for path in files:

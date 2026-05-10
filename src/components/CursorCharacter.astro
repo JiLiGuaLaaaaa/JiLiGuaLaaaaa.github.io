@@ -45,6 +45,50 @@
     "down-left": `${frameBase}/look/down-left.png`,
     "down-right": `${frameBase}/look/down-right.png`
   } as const;
+  type LookFrameName = keyof typeof lookFrames;
+  type DirectionalLookName = Exclude<LookFrameName, "center">;
+  const lookTransitionFrames: Record<DirectionalLookName, string[]> = {
+    up: [
+      `${frameBase}/look-transition/to-up-1.png`,
+      `${frameBase}/look-transition/to-up-2.png`,
+      `${frameBase}/look-transition/to-up-3.png`
+    ],
+    down: [
+      `${frameBase}/look-transition/to-down-1.png`,
+      `${frameBase}/look-transition/to-down-2.png`,
+      `${frameBase}/look-transition/to-down-3.png`
+    ],
+    left: [
+      `${frameBase}/look-transition/to-left-1.png`,
+      `${frameBase}/look-transition/to-left-2.png`,
+      `${frameBase}/look-transition/to-left-3.png`
+    ],
+    right: [
+      `${frameBase}/look-transition/to-right-1.png`,
+      `${frameBase}/look-transition/to-right-2.png`,
+      `${frameBase}/look-transition/to-right-3.png`
+    ],
+    "up-left": [
+      `${frameBase}/look-transition/to-up-left-1.png`,
+      `${frameBase}/look-transition/to-up-left-2.png`,
+      `${frameBase}/look-transition/to-up-left-3.png`
+    ],
+    "up-right": [
+      `${frameBase}/look-transition/to-up-right-1.png`,
+      `${frameBase}/look-transition/to-up-right-2.png`,
+      `${frameBase}/look-transition/to-up-right-3.png`
+    ],
+    "down-left": [
+      `${frameBase}/look-transition/to-down-left-1.png`,
+      `${frameBase}/look-transition/to-down-left-2.png`,
+      `${frameBase}/look-transition/to-down-left-3.png`
+    ],
+    "down-right": [
+      `${frameBase}/look-transition/to-down-right-1.png`,
+      `${frameBase}/look-transition/to-down-right-2.png`,
+      `${frameBase}/look-transition/to-down-right-3.png`
+    ]
+  };
   const waveFrames = [
     `${frameBase}/wave/wave-0.png`,
     `${frameBase}/wave/wave-1.png`,
@@ -63,15 +107,12 @@
     `${frameBase}/blink/open-2.png`
   ];
   const blinkSequence = [
-    blinkFrames[0],
-    blinkFrames[1],
     blinkFrames[1],
     blinkFrames[2],
     blinkFrames[3],
     blinkFrames[3],
     blinkFrames[2],
     blinkFrames[1],
-    blinkFrames[4],
     lookFrames.center
   ];
   const messages = [
@@ -81,15 +122,22 @@
     "樱花粉模式启动。",
     "记得不要提交密钥。"
   ];
-  const framePreloads = [...Object.values(lookFrames), ...blinkFrames, ...waveFrames];
+  const lookTransitionPreloads = Object.values(lookTransitionFrames).reduce<string[]>(
+    (all, frames) => [...all, ...frames],
+    []
+  );
+  const framePreloads = [...Object.values(lookFrames), ...lookTransitionPreloads, ...blinkFrames, ...waveFrames];
   const framePromises = new Map<string, Promise<void>>();
-  type LookFrameName = keyof typeof lookFrames;
   type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
+  let displayedLook: keyof typeof lookFrames = "center";
   let currentAction: CharacterAction = "idle";
   let messageIndex = 0;
   let animationToken = 0;
+  let lookTransitionToken = 0;
+  let isLookTransitioning = false;
   let lastPointerAt = performance.now();
+  let lastLookChangedAt = performance.now();
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
   let didDrag = false;
 
@@ -168,11 +216,54 @@
     return "center";
   };
 
-  const setLook = (look: LookFrameName, forceFrame = false) => {
-    currentLook = look;
-    if (currentAction === "idle" || forceFrame) {
-      setFrame(lookFrames[currentLook]);
+  const buildLookTransition = (from: LookFrameName, to: LookFrameName) => {
+    if (from === to) return [lookFrames[to]];
+    if (to === "center") {
+      if (from === "center") return [lookFrames.center];
+      return [...lookTransitionFrames[from as DirectionalLookName]].reverse().concat(lookFrames.center);
     }
+    if (from === "center") {
+      return [...lookTransitionFrames[to], lookFrames[to]];
+    }
+    return [
+      ...[...lookTransitionFrames[from as DirectionalLookName]].reverse(),
+      lookFrames.center,
+      ...lookTransitionFrames[to],
+      lookFrames[to]
+    ];
+  };
+
+  const playLookTransition = async (look: LookFrameName) => {
+    if (!frame || reduceMotion.matches || currentAction !== "idle") return;
+    const token = ++lookTransitionToken;
+    const frames = buildLookTransition(displayedLook, look);
+    isLookTransitioning = true;
+    await warmFrames(frames);
+    if (token !== lookTransitionToken || currentAction !== "idle") return;
+    for (const src of frames) {
+      if (token !== lookTransitionToken || currentAction !== "idle") return;
+      setFrame(src);
+      await wait(46);
+    }
+    if (token === lookTransitionToken) {
+      displayedLook = look;
+      setFrame(lookFrames[look]);
+      isLookTransitioning = false;
+    }
+  };
+
+  const setLook = (look: LookFrameName, forceFrame = false) => {
+    if (!forceFrame && look === currentLook) return;
+    currentLook = look;
+    lastLookChangedAt = performance.now();
+    if (forceFrame || reduceMotion.matches || currentAction !== "idle") {
+      lookTransitionToken += 1;
+      isLookTransitioning = false;
+      displayedLook = look;
+      setFrame(lookFrames[currentLook]);
+      return;
+    }
+    void playLookTransition(look);
   };
 
   const playFrames = async (
@@ -183,6 +274,8 @@
   ) => {
     if (!frame || reduceMotion.matches) return;
     const token = ++animationToken;
+    lookTransitionToken += 1;
+    isLookTransitioning = false;
     currentAction = action;
     character?.classList.remove("is-animating");
     await warmFrames(frames);
@@ -202,9 +295,10 @@
 
   const playBlink = () => {
     if (character?.classList.contains("is-hidden")) return;
-    if (document.hidden || currentAction !== "idle" || currentLook !== "center") return;
-    if (performance.now() - lastPointerAt < 1800) return;
-    void playFrames(blinkSequence, "blink", 135, "center");
+    if (document.hidden || currentAction !== "idle" || currentLook !== "center" || displayedLook !== "center") return;
+    if (isLookTransitioning || performance.now() - lastLookChangedAt < 1100) return;
+    if (performance.now() - lastPointerAt < 2200) return;
+    void playFrames(blinkSequence, "blink", 155, "center");
   };
 
   const playWave = () => {
