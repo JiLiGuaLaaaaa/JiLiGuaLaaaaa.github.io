@@ -1,0 +1,268 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import imageio.v3 as iio
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+
+ROOT = Path(__file__).resolve().parents[1]
+VIDEO_SRC = ROOT / "生成指定动作视频 (2).mp4"
+OUT = ROOT / "public" / "images" / "video-mascot"
+
+CANVAS = (720, 640)
+BASELINE = 624
+SOURCE_ROI = (150, 0, 1130, 720)
+TARGET_WIDTH = 680
+PREVIEW_CELL = (188, 182)
+
+LOOK_FRAME_IDS = {
+    "center": 130,
+    "up": 95,
+    "down": 50,
+    "right": 70,
+    "down-right": 65,
+    "up-right": 85,
+}
+BLINK_FRAME_IDS = {
+    "open": 130,
+    "half-1": 125,
+    "half-2": 105,
+    "closed": 115,
+    "open-2": 130,
+}
+WAVE_FRAME_IDS = [150, 155, 160, 165, 170, 180, 200, 230]
+
+
+def load_video_frames(frame_ids: set[int]) -> dict[int, Image.Image]:
+    if not VIDEO_SRC.exists():
+        raise FileNotFoundError(f"missing source video: {VIDEO_SRC}")
+
+    frames: dict[int, Image.Image] = {}
+    last_id = max(frame_ids)
+    for index, frame in enumerate(iio.imiter(VIDEO_SRC)):
+        if index in frame_ids:
+            frames[index] = Image.fromarray(frame).convert("RGB")
+        if index >= last_id:
+            break
+
+    missing = sorted(frame_ids - frames.keys())
+    if missing:
+        raise RuntimeError(f"missing video frames: {missing}")
+    return frames
+
+
+def sample_green(rgb: np.ndarray) -> np.ndarray:
+    r = rgb[..., 0].astype(np.int16)
+    g = rgb[..., 1].astype(np.int16)
+    b = rgb[..., 2].astype(np.int16)
+    green = (g > 90) & (g > r + 20) & (g > b + 20)
+    if not np.any(green):
+        return np.array([115, 194, 82], dtype=np.uint8)
+    return np.median(rgb[green], axis=0).astype(np.uint8)
+
+
+def erase_watermark_zones(rgb: np.ndarray) -> np.ndarray:
+    clean = rgb.copy()
+    key = sample_green(clean)
+    h, w = clean.shape[:2]
+    zones = [
+        (0, 0, 340, 130),
+        (0, h - 135, 360, h),
+        (w - 340, 0, w, 130),
+        (w - 360, h - 145, w, h),
+    ]
+    for x1, y1, x2, y2 in zones:
+        clean[y1:y2, x1:x2] = key
+    return clean
+
+
+def green_to_alpha(image: Image.Image) -> Image.Image:
+    rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
+    rgb = erase_watermark_zones(rgb)
+    data = rgb.astype(np.float32)
+    r = data[..., 0]
+    g = data[..., 1]
+    b = data[..., 2]
+
+    green_delta = np.minimum(g - r, g - b)
+    key_strength = np.clip((green_delta - 8.0) / 54.0, 0.0, 1.0)
+    green_level = np.clip((g - 76.0) / 92.0, 0.0, 1.0)
+    alpha = (1.0 - key_strength * green_level) * 255.0
+    alpha[(g > 95) & (green_delta > 42)] = 0
+    alpha = np.clip(alpha, 0, 255).astype(np.uint8)
+
+    alpha_image = Image.fromarray(alpha, "L")
+    alpha_image = alpha_image.filter(ImageFilter.GaussianBlur(0.45))
+    alpha = np.array(alpha_image, dtype=np.uint8)
+    alpha[alpha < 26] = 0
+
+    spill = (alpha > 0) & (g > r + 2) & (g > b + 2)
+    spill_amount = np.clip((g - np.maximum(r, b) - 2.0) / 82.0, 0.0, 1.0)
+    edge_spill = spill & (alpha < 252)
+    alpha = alpha.copy()
+    alpha[edge_spill] = np.clip(alpha[edge_spill] * (1.0 - spill_amount[edge_spill] * 0.82), 0, 255).astype(np.uint8)
+    neutral_green = np.maximum(r, b) * 0.92 + np.minimum(r, b) * 0.08
+    data[..., 1] = np.where(spill, np.minimum(g, neutral_green + 1), g)
+
+    rgba = np.dstack([np.clip(data, 0, 255).astype(np.uint8), alpha])
+    return Image.fromarray(rgba, "RGBA")
+
+
+def alpha_bbox(image: Image.Image, threshold: int = 8) -> tuple[int, int, int, int]:
+    mask = image.getchannel("A").point(lambda value: 255 if value > threshold else 0)
+    bbox = mask.getbbox()
+    if not bbox:
+        raise ValueError("empty alpha frame")
+    return bbox
+
+
+def keep_main_subject(image: Image.Image, *, alpha_threshold: int = 8) -> Image.Image:
+    rgba = image.convert("RGBA")
+    pixels = rgba.load()
+    width, height = rgba.size
+    visited = np.zeros((height, width), dtype=bool)
+    components: list[tuple[int, int, int, int, int, list[tuple[int, int]]]] = []
+
+    for y in range(height):
+        for x in range(width):
+            if visited[y, x]:
+                continue
+            visited[y, x] = True
+            if pixels[x, y][3] <= alpha_threshold:
+                continue
+
+            stack = [(x, y)]
+            coords: list[tuple[int, int]] = []
+            min_x = max_x = x
+            min_y = max_y = y
+            while stack:
+                cx, cy = stack.pop()
+                if pixels[cx, cy][3] <= alpha_threshold:
+                    continue
+                coords.append((cx, cy))
+                min_x = min(min_x, cx)
+                max_x = max(max_x, cx)
+                min_y = min(min_y, cy)
+                max_y = max(max_y, cy)
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                    if 0 <= nx < width and 0 <= ny < height and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        stack.append((nx, ny))
+
+            if coords:
+                components.append((len(coords), min_x, min_y, max_x, max_y, coords))
+
+    if not components:
+        return rgba
+
+    center_x = width / 2
+    baseline_weight = height * 0.62
+
+    def score(component: tuple[int, int, int, int, int, list[tuple[int, int]]]) -> float:
+        area, min_x, min_y, max_x, max_y, _coords = component
+        component_center_x = (min_x + max_x) / 2
+        component_center_y = (min_y + max_y) / 2
+        center_penalty = abs(component_center_x - center_x) * 4 + abs(component_center_y - baseline_weight)
+        return area - center_penalty
+
+    keep_index = max(range(len(components)), key=lambda index: score(components[index]))
+    for index, (_area, _min_x, _min_y, _max_x, _max_y, coords) in enumerate(components):
+        if index == keep_index:
+            continue
+        for px, py in coords:
+            r, g, b, _a = pixels[px, py]
+            pixels[px, py] = (r, g, b, 0)
+    return rgba
+
+
+def normalize_frame(frame: Image.Image) -> Image.Image:
+    keyed = green_to_alpha(frame)
+    cropped = keyed.crop(SOURCE_ROI)
+    target_height = round(cropped.height * TARGET_WIDTH / cropped.width)
+    resized = cropped.resize((TARGET_WIDTH, target_height), Image.Resampling.LANCZOS)
+
+    canvas = Image.new("RGBA", CANVAS, (255, 255, 255, 0))
+    x = (CANVAS[0] - resized.width) // 2
+    y = BASELINE - resized.height
+    canvas.alpha_composite(resized, (x, y))
+    return keep_main_subject(canvas)
+
+
+def save_named_frames(frames: dict[int, Image.Image]) -> None:
+    for folder in ["look", "blink", "wave"]:
+        (OUT / folder).mkdir(parents=True, exist_ok=True)
+
+    processed = {index: normalize_frame(frame) for index, frame in frames.items()}
+
+    for name, frame_id in LOOK_FRAME_IDS.items():
+        processed[frame_id].save(OUT / "look" / f"{name}.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["right"]]).save(OUT / "look" / "left.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["up-right"]]).save(OUT / "look" / "up-left.png")
+    ImageOps.mirror(processed[LOOK_FRAME_IDS["down-right"]]).save(OUT / "look" / "down-left.png")
+
+    for name, frame_id in BLINK_FRAME_IDS.items():
+        processed[frame_id].save(OUT / "blink" / f"{name}.png")
+
+    for index, frame_id in enumerate(WAVE_FRAME_IDS):
+        processed[frame_id].save(OUT / "wave" / f"wave-{index}.png")
+
+
+def build_preview() -> None:
+    files = [
+        *(OUT / "look").glob("*.png"),
+        *(OUT / "blink").glob("*.png"),
+        *(OUT / "wave").glob("*.png"),
+    ]
+    files = sorted(files, key=lambda path: (path.parent.name, path.name))
+    cols = 5
+    rows = (len(files) + cols - 1) // cols
+    preview = Image.new("RGB", (cols * PREVIEW_CELL[0], rows * PREVIEW_CELL[1]), (225, 246, 231))
+    checker = Image.new("RGB", PREVIEW_CELL, (225, 246, 231))
+    draw = ImageDraw.Draw(checker)
+    step = 18
+    for y in range(0, PREVIEW_CELL[1], step):
+        for x in range(0, PREVIEW_CELL[0], step):
+            if (x // step + y // step) % 2:
+                draw.rectangle((x, y, x + step - 1, y + step - 1), fill=(204, 232, 212))
+
+    for index, path in enumerate(files):
+        cell = checker.copy()
+        image = Image.open(path).convert("RGBA")
+        thumb = image.copy()
+        thumb.thumbnail((PREVIEW_CELL[0] - 16, PREVIEW_CELL[1] - 34), Image.Resampling.LANCZOS)
+        x = (PREVIEW_CELL[0] - thumb.width) // 2
+        y = PREVIEW_CELL[1] - 30 - thumb.height
+        cell.paste(thumb, (x, y), thumb)
+        bbox = alpha_bbox(image)
+        label = f"{path.parent.name}/{path.stem} {bbox[2]-bbox[0]}x{bbox[3]-bbox[1]}"
+        ImageDraw.Draw(cell).text((6, PREVIEW_CELL[1] - 22), label, fill=(42, 84, 52))
+        preview.paste(cell, ((index % cols) * PREVIEW_CELL[0], (index // cols) * PREVIEW_CELL[1]))
+
+    preview.save(OUT / "preview.jpg", quality=92)
+
+
+def audit() -> None:
+    files = sorted([*(OUT / "look").glob("*.png"), *(OUT / "blink").glob("*.png"), *(OUT / "wave").glob("*.png")])
+    sizes = set()
+    bottoms = set()
+    for path in files:
+        image = Image.open(path).convert("RGBA")
+        sizes.add(image.size)
+        bottoms.add(alpha_bbox(image)[3])
+    assert sizes == {CANVAS}, sizes
+    assert max(bottoms) - min(bottoms) <= 1, bottoms
+    print(f"video_mascot_frames={len(files)} sizes={sorted(sizes)} bottoms={sorted(bottoms)}")
+
+
+def main() -> None:
+    frame_ids = set(LOOK_FRAME_IDS.values()) | set(BLINK_FRAME_IDS.values()) | set(WAVE_FRAME_IDS)
+    frames = load_video_frames(frame_ids)
+    save_named_frames(frames)
+    build_preview()
+    audit()
+
+
+if __name__ == "__main__":
+    main()

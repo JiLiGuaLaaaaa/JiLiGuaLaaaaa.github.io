@@ -6,10 +6,12 @@
   <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
     <img
       class="cursor-character__frame"
-      src="/images/mascot-frames/look/center.png"
+      src="/images/video-mascot/look/center.png"
       alt=""
-      loading="lazy"
+      loading="eager"
       decoding="async"
+      width="720"
+      height="640"
       data-character-frame
     />
     <span class="cursor-character__missing" data-character-missing>小助手素材加载失败</span>
@@ -31,7 +33,7 @@
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const positionKey = "blog-character-position";
   const hiddenKey = "blog-character-hidden";
-  const frameBase = "/images/mascot-frames";
+  const frameBase = "/images/video-mascot";
   const lookFrames = {
     center: `${frameBase}/look/center.png`,
     up: `${frameBase}/look/up.png`,
@@ -45,19 +47,12 @@
   } as const;
   const waveFrames = [
     `${frameBase}/wave/wave-0.png`,
-    `${frameBase}/wave/wave-0-to-1.png`,
     `${frameBase}/wave/wave-1.png`,
-    `${frameBase}/wave/wave-1-to-2.png`,
     `${frameBase}/wave/wave-2.png`,
-    `${frameBase}/wave/wave-2-to-3.png`,
     `${frameBase}/wave/wave-3.png`,
-    `${frameBase}/wave/wave-3-to-4.png`,
     `${frameBase}/wave/wave-4.png`,
-    `${frameBase}/wave/wave-4-to-5.png`,
     `${frameBase}/wave/wave-5.png`,
-    `${frameBase}/wave/wave-5-to-6.png`,
     `${frameBase}/wave/wave-6.png`,
-    `${frameBase}/wave/wave-6-to-7.png`,
     `${frameBase}/wave/wave-7.png`
   ];
   const blinkFrames = [
@@ -87,6 +82,7 @@
     "记得不要提交密钥。"
   ];
   const framePreloads = [...Object.values(lookFrames), ...blinkFrames, ...waveFrames];
+  const framePromises = new Map<string, Promise<void>>();
   type LookFrameName = keyof typeof lookFrames;
   type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
@@ -99,8 +95,39 @@
 
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+  const preloadFrame = (src: string) => {
+    const cached = framePromises.get(src);
+    if (cached) return cached;
+
+    const image = new Image();
+    image.decoding = "async";
+    const promise = new Promise<void>((resolve) => {
+      const finish = () => resolve();
+      image.addEventListener(
+        "load",
+        () => {
+          if (typeof image.decode === "function") {
+            void image.decode().catch(() => undefined).finally(finish);
+            return;
+          }
+          finish();
+        },
+        { once: true }
+      );
+      image.addEventListener("error", finish, { once: true });
+    });
+
+    image.src = src;
+    framePromises.set(src, promise);
+    return promise;
+  };
+
+  const warmFrames = (frames: string[]) => Promise.allSettled(frames.map((src) => preloadFrame(src)));
+
   const setFrame = (src: string) => {
     if (!frame) return;
+    if (frame.dataset.currentSrc === src) return;
+    frame.dataset.currentSrc = src;
     frame.src = src;
   };
 
@@ -157,11 +184,10 @@
     if (!frame || reduceMotion.matches) return;
     const token = ++animationToken;
     currentAction = action;
-    const shouldAnimateFrame = action === "wave";
     character?.classList.remove("is-animating");
-    if (shouldAnimateFrame) {
-      character?.classList.add("is-animating");
-    }
+    await warmFrames(frames);
+    if (token !== animationToken) return;
+    character?.classList.toggle("is-animating", action === "wave");
     for (const src of frames) {
       if (token !== animationToken) return;
       setFrame(src);
@@ -170,9 +196,7 @@
     if (token === animationToken) {
       currentAction = "idle";
       setLook(returnLook, true);
-      if (shouldAnimateFrame) {
-        character?.classList.remove("is-animating");
-      }
+      character?.classList.remove("is-animating");
     }
   };
 
@@ -186,13 +210,8 @@
   const playWave = () => {
     say();
     setLook("center", true);
-    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 58, "center");
+    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 92, "center");
   };
-
-  framePreloads.forEach((src) => {
-    const image = new Image();
-    image.src = src;
-  });
 
   frame?.addEventListener("error", () => {
     if (!frame || !missing) return;
@@ -215,7 +234,7 @@
     setHidden(false);
     say("我回来啦。");
     setLook("center", true);
-    void playFrames([...waveFrames.slice(0, 7), lookFrames.center], "wave", 62, "center");
+    void playFrames([...waveFrames.slice(0, 6), lookFrames.center], "wave", 92, "center");
   });
 
   stage?.addEventListener("pointerdown", (event) => {
@@ -276,6 +295,7 @@
 
   applyStoredPosition();
   setHidden(localStorage.getItem(hiddenKey) === "1");
+  void warmFrames(framePreloads);
   window.setInterval(playBlink, 5200);
   window.setInterval(() => {
     if (!document.hidden && !character?.classList.contains("is-hidden")) {
@@ -290,8 +310,8 @@
     right: 18px;
     bottom: 18px;
     z-index: 15;
-    width: min(172px, 22vw);
-    min-width: 132px;
+    width: min(226px, 26vw);
+    min-width: 164px;
     transition:
       opacity 180ms ease,
       transform 180ms ease;
@@ -373,14 +393,16 @@
   .cursor-character__frame {
     display: block;
     width: 100%;
+    aspect-ratio: 720 / 640;
     max-height: 248px;
     object-fit: contain;
     object-position: center bottom;
     animation: floaty 4.8s ease-in-out infinite;
+    transform: translateZ(0);
   }
 
   .cursor-character.is-animating .cursor-character__frame {
-    animation: bounce-wave 680ms ease, floaty 4.8s ease-in-out infinite;
+    animation: floaty 4.8s ease-in-out infinite;
   }
 
   .cursor-character__missing {
@@ -424,16 +446,6 @@
     }
     50% {
       translate: 0 -7px;
-    }
-  }
-
-  @keyframes bounce-wave {
-    0%,
-    100% {
-      scale: 1;
-    }
-    45% {
-      scale: 1.035;
     }
   }
 

@@ -48,17 +48,19 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：使用 `public/images/mascot-frames/` 中的动作帧，支持鼠标视线方向切换、正面空闲眨眼、点击挥手、拖动位置和隐藏；移动端隐藏，不连接后端。眨眼基于当前正面脸型局部重绘眼部表情；挥手使用完整动作帧，让手部、头部和身体一起产生问候动作。
+- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、正面空闲眨眼、点击挥手、拖动位置和隐藏；移动端隐藏，不连接后端。组件会在播放前预解码图片以减少闪烁。
 
 图片资源放在 `public/images/`：
 
 - `site-bg.jpg`：页面背景图，显示时约 45% 不透明度。
-- `mascot-frames/look/`：九宫格视线方向帧，用于根据鼠标位置切换小人朝向；右向帧由左向帧镜像生成，保证左右一致。
-- `mascot-frames/blink/`：保留眨眼审核帧；实际网页眨眼直接播放这些合成帧，只在当前正面脸型上改变眼线、眼缝和嘴部，避免整块人脸贴偏。
-- `mascot-frames/wave/`：打招呼帧，用于点击或显示时的挥手动作；包含算法补出的 `wave-*-to-*` 过渡帧，让动作更连贯。当前挥手帧保留完整手部，并允许头部和身体随动作自然变化。
-- `scripts/refine_mascot_frames.py`：使用 `uv` 虚拟环境中的 Pillow 重新生成动作帧、修复挥手切分边界、补正上/正下视角、填补下摆透明破洞、生成补帧，并把眨眼帧重做为贴合当前脸型的慢速表情序列。
+- `video-mascot/look/`：从视频中抽取的视线方向帧，用于根据鼠标位置切换小人朝向；左向帧由右向帧镜像生成，保证左右一致。
+- `video-mascot/blink/`：从视频闭眼段抽取的眨眼帧，实际网页眨眼直接播放这些透明 PNG。
+- `video-mascot/wave/`：从视频挥手段抽取的 8 个实帧，用于点击或显示时的挥手动作。
+- `scripts/process_video_mascot.py`：使用 `uv` 虚拟环境中的 `imageio`、`imageio-ffmpeg`、`numpy` 和 Pillow 从 `生成指定动作视频 (2).mp4` 抽帧；通过 HSV/色键思路去除绿色背景，通过水印角落区域替换为绿幕色并只保留人物主连通区域去除水印，再统一画布和底部基线。
+- 重新处理视频帧前，先运行 `uv pip install pillow imageio imageio-ffmpeg numpy`，再运行 `uv run python scripts/process_video_mascot.py`。
+- `mascot-frames/` 和 `scripts/refine_mascot_frames.py`：保留上一版图片帧生成方案，作为备用资源，不再是当前网页主用小人。
 - 所有动作帧统一为同一画布和同一底部基线，避免动作之间忽大忽小。
-- `mascot-frames/preview.jpg`：动作帧预览图，只用于本地检查，不提交到仓库。
+- `video-mascot/preview.jpg`：视频动作帧预览图，只用于本地检查，不提交到仓库。
 
 ## 部署
 

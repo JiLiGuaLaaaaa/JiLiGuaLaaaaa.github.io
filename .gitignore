@@ -22,10 +22,15 @@ diary/
 back.png
 character.jpg
 ChatGPT Image*.png
+*.mp4
 public/images/mascot-cutout-preview.png
 public/images/mascot-frames/preview.jpg
 public/images/mascot-frames/eye-grid.jpg
 public/images/mascot-frames/candidate*.png
+public/images/video-mascot/preview.jpg
+public/images/video-mascot/source-sample.jpg
+public/images/video-mascot/action-audit-source.jpg
+public/images/video-mascot/audit/
 
 npm-debug.log*
 pnpm-debug.log*

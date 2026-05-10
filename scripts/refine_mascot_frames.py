@@ -15,9 +15,9 @@ WAVE_SRC = ROOT / "ChatGPT Image 2026年5月9日 16_58_49.png"
 CANVAS = (520, 560)
 BASELINE = 548
 PREVIEW_CELL = (188, 182)
+WAVE_TARGET_HEIGHT = 516
 BLINK_FRAME_NAMES = ["open", "half-1", "half-2", "closed", "open-2"]
-BLINK_EYE_BOXES = [(154, 258, 246, 300), (274, 258, 366, 300)]
-BLINK_MOUTH_BOX = (226, 318, 300, 336)
+BLINK_EYE_BOXES = [(170, 262, 232, 294), (288, 262, 350, 294)]
 WAVE_ARM_CUTS = [
     (344, 220),
     (342, 198),
@@ -122,6 +122,66 @@ def remove_left_edge_fragments(
             for px, py in coords:
                 r, g, b, _a = pixels[px, py]
                 pixels[px, py] = (r, g, b, 0)
+
+    return rgba
+
+
+def keep_primary_component(image: Image.Image, *, alpha_threshold: int = 8) -> Image.Image:
+    rgba = image.convert("RGBA")
+    pixels = rgba.load()
+    width, height = rgba.size
+    visited = [[False for _ in range(width)] for _ in range(height)]
+    components: list[tuple[int, int, int, int, int, list[tuple[int, int]]]] = []
+
+    for y in range(height):
+        for x in range(width):
+            if visited[y][x]:
+                continue
+            visited[y][x] = True
+            if pixels[x, y][3] <= alpha_threshold:
+                continue
+
+            queue: deque[tuple[int, int]] = deque([(x, y)])
+            coords: list[tuple[int, int]] = []
+            min_x = max_x = x
+            min_y = max_y = y
+            while queue:
+                cx, cy = queue.popleft()
+                if pixels[cx, cy][3] <= alpha_threshold:
+                    continue
+                coords.append((cx, cy))
+                min_x = min(min_x, cx)
+                max_x = max(max_x, cx)
+                min_y = min(min_y, cy)
+                max_y = max(max_y, cy)
+                for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                    if 0 <= nx < width and 0 <= ny < height and not visited[ny][nx]:
+                        visited[ny][nx] = True
+                        queue.append((nx, ny))
+
+            if coords:
+                components.append((len(coords), min_x, min_y, max_x, max_y, coords))
+
+    if not components:
+        return rgba
+
+    center_x = width / 2
+    center_y = height / 2
+
+    def component_score(component: tuple[int, int, int, int, int, list[tuple[int, int]]]) -> float:
+        area, min_x, min_y, max_x, max_y, _coords = component
+        box_center_x = (min_x + max_x) / 2
+        box_center_y = (min_y + max_y) / 2
+        distance = abs(box_center_x - center_x) + abs(box_center_y - center_y) * 0.7
+        return area - distance * 2.0
+
+    primary_index = max(range(len(components)), key=lambda idx: component_score(components[idx]))
+    for index, (_area, _min_x, _min_y, _max_x, _max_y, coords) in enumerate(components):
+        if index == primary_index:
+            continue
+        for px, py in coords:
+            r, g, b, _a = pixels[px, py]
+            pixels[px, py] = (r, g, b, 0)
 
     return rgba
 
@@ -274,8 +334,9 @@ def clear_left_wave_artifact(image: Image.Image, index: int) -> Image.Image:
 
     rgba = image.convert("RGBA")
     pixels = rgba.load()
-    for y in range(370, rgba.height):
-        for x in range(min(76, rgba.width)):
+    for y in range(118, rgba.height):
+        x_limit = 128 if y < 360 else 146
+        for x in range(min(x_limit, rgba.width)):
             r, g, b, a = pixels[x, y]
             if a > 8:
                 pixels[x, y] = (r, g, b, 0)
@@ -351,32 +412,38 @@ def quadratic_points(
     return points
 
 
-def sample_face_color(base: Image.Image) -> tuple[int, int, int, int]:
+def sample_box_color(base: Image.Image, box: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
     pixels = base.convert("RGBA").load()
     colors: list[tuple[int, int, int]] = []
-    for y in range(292, 350):
-        for x in range(176, 344):
+    for y in range(298, 326):
+        for x in range(180, 340):
             r, g, b, a = pixels[x, y]
-            if a > 220 and r > 218 and g > 166 and b > 152 and max(r, g, b) - min(r, g, b) < 90:
+            if (
+                a > 220
+                and r > 210
+                and 150 <= g <= 232
+                and 140 <= b <= 224
+                and r >= g >= b - 8
+                and max(r, g, b) - min(r, g, b) < 92
+            ):
                 colors.append((r, g, b))
 
     if not colors:
-        return (248, 228, 219, 255)
+        return (248, 226, 216, 255)
 
     r, g, b = (sum(color[index] for color in colors) // len(colors) for index in range(3))
-    return (max(0, r - 4), max(0, g - 10), max(0, b - 12), 255)
+    return (min(255, r + 2), min(255, g + 7), min(255, b + 8), 255)
 
 
-def cover_open_eyes(base: Image.Image) -> Image.Image:
-    frame = base.convert("RGBA")
-    skin_patch = Image.new("RGBA", CANVAS, sample_face_color(frame))
+def cover_eye_region(frame: Image.Image, box: tuple[int, int, int, int], opacity: int) -> None:
+    patch = Image.new("RGBA", CANVAS, sample_box_color(frame, box))
     mask = Image.new("L", CANVAS, 0)
     draw = ImageDraw.Draw(mask)
-    for box in BLINK_EYE_BOXES:
-        draw.rounded_rectangle(box, radius=18, fill=255)
-    draw.rounded_rectangle(BLINK_MOUTH_BOX, radius=9, fill=145)
-    mask = mask.filter(ImageFilter.GaussianBlur(1.4))
-    return Image.composite(skin_patch, frame, mask)
+    x1, y1, x2, y2 = box
+    draw.ellipse((x1 + 1, y1 + 1, x2 - 1, y2), fill=round(opacity * 0.78))
+    draw.ellipse((x1 + 7, y1 + 4, x2 - 7, y2 - 3), fill=opacity)
+    mask = mask.filter(ImageFilter.GaussianBlur(0.75))
+    frame.alpha_composite(Image.composite(patch, Image.new("RGBA", CANVAS, (0, 0, 0, 0)), mask))
 
 
 def paste_eye_slit(frame: Image.Image, base: Image.Image, box: tuple[int, int, int, int], openness: int) -> None:
@@ -384,13 +451,13 @@ def paste_eye_slit(frame: Image.Image, base: Image.Image, box: tuple[int, int, i
     eye = base.convert("RGBA").crop(box)
     mask = Image.new("L", eye.size, 0)
     draw = ImageDraw.Draw(mask)
-    center_y = 22
+    center_y = eye.height // 2 + 1
     draw.rounded_rectangle(
         (9, center_y - openness, eye.width - 9, center_y + openness),
         radius=max(2, openness),
-        fill=205,
+        fill=175,
     )
-    mask = mask.filter(ImageFilter.GaussianBlur(0.4))
+    mask = mask.filter(ImageFilter.GaussianBlur(0.35))
     frame.paste(eye, (x1, y1), mask)
 
 
@@ -398,55 +465,55 @@ def draw_blink_expression(base: Image.Image, name: str) -> Image.Image:
     if name in {"open", "open-2"}:
         return base.convert("RGBA").copy()
 
-    frame = cover_open_eyes(base)
+    frame = base.convert("RGBA").copy()
     draw = ImageDraw.Draw(frame, "RGBA")
     expressions = {
         "half-1": {
-            "eye_y": 273,
-            "curve": -5,
+            "eye_y": 277,
+            "curve": -3,
             "width": 2,
-            "highlight": 1,
+            "cover": 185,
+            "slit": 3,
             "mouth_y": 324,
         },
         "half-2": {
-            "eye_y": 276,
-            "curve": -2,
+            "eye_y": 278,
+            "curve": -1,
             "width": 2,
-            "highlight": 0,
+            "cover": 220,
+            "slit": 1,
             "mouth_y": 324,
         },
         "closed": {
-            "eye_y": 278,
+            "eye_y": 279,
             "curve": 1,
-            "width": 3,
-            "highlight": 0,
+            "width": 2,
+            "cover": 255,
+            "slit": 0,
             "mouth_y": 324,
         },
     }
     expression = expressions[name]
 
-    for box, side in zip(BLINK_EYE_BOXES, [-1, 1]):
-        if name == "half-1":
-            paste_eye_slit(frame, base, box, openness=4)
-        elif name == "half-2":
-            paste_eye_slit(frame, base, box, openness=2)
+    for box in BLINK_EYE_BOXES:
+        cover_eye_region(frame, box, expression["cover"])
+        if expression["slit"]:
+            paste_eye_slit(frame, base, box, openness=expression["slit"])
 
         x1, _y1, x2, _y2 = box
         y = expression["eye_y"]
-        inset = 12 if name == "closed" else 14
+        inset = 11 if name == "closed" else 12
         start = (x1 + inset, y)
         control = ((x1 + x2) // 2, y + expression["curve"])
         end = (x2 - inset, y)
         points = quadratic_points(start, control, end)
         draw.line(points, fill=(48, 23, 42, 238), width=expression["width"], joint="curve")
 
-        lash_anchor = points[-1] if side < 0 else points[0]
-        lash_dx = 8 * side
-        draw.line(
-            [lash_anchor, (lash_anchor[0] + lash_dx, lash_anchor[1] - 3)],
-            fill=(48, 23, 42, 178),
-            width=2,
-        )
+        if name == "closed":
+            left_lash = (start[0] + 3, y - 1)
+            right_lash = (end[0] - 3, y - 1)
+            draw.line([left_lash, (left_lash[0] - 3, left_lash[1] - 2)], fill=(48, 23, 42, 150), width=1)
+            draw.line([right_lash, (right_lash[0] + 3, right_lash[1] - 2)], fill=(48, 23, 42, 150), width=1)
 
     mouth_y = expression["mouth_y"]
     mouth_points = quadratic_points((238, mouth_y), (264, mouth_y + 1), (288, mouth_y), steps=24)
@@ -475,23 +542,18 @@ def crop_strip(image: Image.Image, count: int, index: int, pad_x: int = 0) -> Im
 
 
 def crop_wave_cell(image: Image.Image, index: int) -> Image.Image:
-    # The waving source is an 8-frame horizontal strip, but the last three
-    # cells contain visible leftovers from the previous frame at the left edge.
-    # Trim those edge fragments instead of expanding the crop into neighbors.
-    left_trim = [0, 0, 0, 0, 0, 42, 48, 48][index]
-    right_trim = [0, 0, 0, 0, 0, 0, 0, 0][index]
     w, h = image.size
-    x1 = round(index * w / 8) + left_trim
-    x2 = round((index + 1) * w / 8) - right_trim
-    return image.crop((max(0, x1), 0, min(w, x2), h))
+    x1 = round(index * w / 8)
+    x2 = round((index + 1) * w / 8)
+    return image.crop((x1, 0, x2, h))
 
 
 def regenerate_wave_frames() -> None:
     wave_sheet = Image.open(WAVE_SRC).convert("RGBA")
     for index in range(8):
         crop = crop_wave_cell(wave_sheet, index)
-        cleaned = remove_wave_edge_fragments(whiten_to_alpha(crop))
-        source = normalize_frame(cleaned, target_height=536, prepared_alpha=True)
+        cleaned = keep_primary_component(whiten_to_alpha(crop))
+        source = normalize_frame(cleaned, target_height=WAVE_TARGET_HEIGHT, prepared_alpha=True)
         frame = inpaint_lower_transparency(source)
         frame = clear_left_wave_artifact(frame, index)
         frame.save(OUT / "wave" / f"wave-{index}.png")
@@ -539,12 +601,8 @@ def blend(a_path: Path, b_path: Path, out_path: Path, alpha: float) -> None:
 
 def create_inbetweens() -> None:
     for index in range(7):
-        blend(
-            OUT / "wave" / f"wave-{index}.png",
-            OUT / "wave" / f"wave-{index + 1}.png",
-            OUT / "wave" / f"wave-{index}-to-{index + 1}.png",
-            0.5,
-        )
+        frame = Image.open(OUT / "wave" / f"wave-{index + 1}.png").convert("RGBA")
+        frame.save(OUT / "wave" / f"wave-{index}-to-{index + 1}.png")
 
 
 def align_all_bottoms() -> None:
