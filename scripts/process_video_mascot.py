@@ -33,7 +33,17 @@ BLINK_FRAME_IDS = {
     "open-2": 130,
 }
 WAVE_FRAME_IDS = [150, 155, 160, 165, 170, 180, 200, 230]
-LOOK_TRANSITION_STEPS = (0.25, 0.5, 0.75)
+LOOK_ANGLE_STEP = 10
+LOOK_VECTOR_WEIGHTS = {
+    "right": (1.0, 0.0),
+    "up-right": (1.0, -1.0),
+    "up": (0.0, -1.0),
+    "up-left": (-1.0, -1.0),
+    "left": (-1.0, 0.0),
+    "down-left": (-1.0, 1.0),
+    "down": (0.0, 1.0),
+    "down-right": (1.0, 1.0),
+}
 BLINK_FACE_PATCH = (205, 238, 515, 392)
 
 
@@ -69,9 +79,9 @@ def erase_watermark_zones(rgb: np.ndarray) -> np.ndarray:
     clean = rgb.copy()
     key = sample_green(clean)
     h, w = clean.shape[:2]
+    clean[0:150, 0:360] = key
+    clean[0:145, w - 360 : w] = key
     zones = [
-        (0, 0, 320, 120),
-        (w - 320, 0, w, 120),
         (w - 330, h - 130, w, h),
     ]
     for x1, y1, x2, y2 in zones:
@@ -101,6 +111,8 @@ def green_to_alpha(image: Image.Image) -> Image.Image:
     green_level = np.clip((g - 76.0) / 92.0, 0.0, 1.0)
     alpha = (1.0 - key_strength * green_level) * 255.0
     alpha[(g > 95) & (green_delta > 42)] = 0
+    skin = (r > 138) & (g > 78) & (b > 58) & (r > b + 18) & (g > b + 8) & (g < r + 48)
+    alpha[skin] = np.maximum(alpha[skin], 248)
     alpha = np.clip(alpha, 0, 255).astype(np.uint8)
 
     alpha_image = Image.fromarray(alpha, "L")
@@ -113,6 +125,7 @@ def green_to_alpha(image: Image.Image) -> Image.Image:
     edge_spill = spill & (alpha < 252)
     alpha = alpha.copy()
     alpha[edge_spill] = np.clip(alpha[edge_spill] * (1.0 - spill_amount[edge_spill] * 0.82), 0, 255).astype(np.uint8)
+    alpha[skin] = np.maximum(alpha[skin], 248)
     neutral_green = np.maximum(r, b) * 0.92 + np.minimum(r, b) * 0.08
     data[..., 1] = np.where(spill, np.minimum(g, neutral_green + 1), g)
 
@@ -203,6 +216,49 @@ def blend_frame(start: Image.Image, end: Image.Image, amount: float) -> Image.Im
     return Image.blend(start.convert("RGBA"), end.convert("RGBA"), amount)
 
 
+def blend_many(weighted_images: list[tuple[Image.Image, float]]) -> Image.Image:
+    base_array = np.zeros((CANVAS[1], CANVAS[0], 4), dtype=np.float32)
+    total = sum(weight for _image, weight in weighted_images)
+    if total <= 0:
+        raise ValueError("empty blend weights")
+    for image, weight in weighted_images:
+        base_array += np.asarray(image.convert("RGBA"), dtype=np.float32) * (weight / total)
+    return Image.fromarray(np.clip(base_array, 0, 255).astype(np.uint8), "RGBA")
+
+
+def angle_slug(angle: int) -> str:
+    return f"a{angle + 360 if angle < 0 else angle:03d}"
+
+
+def angular_delta(a: float, b: float) -> float:
+    return abs((a - b + 180) % 360 - 180)
+
+
+def direction_angle(dx: float, dy: float) -> float:
+    return (np.degrees(np.arctan2(dy, dx)) + 360) % 360
+
+
+def generate_angle_frames(look_images: dict[str, Image.Image]) -> None:
+    for path in (OUT / "look-angle").glob("*.png"):
+        path.unlink()
+
+    direction_entries = [
+        (name, direction_angle(dx, dy), image)
+        for name, (dx, dy) in LOOK_VECTOR_WEIGHTS.items()
+        for image in [look_images[name]]
+    ]
+    for angle in range(0, 360, LOOK_ANGLE_STEP):
+        weighted = []
+        for _name, direction, image in direction_entries:
+            delta = angular_delta(angle, direction)
+            if delta <= 45:
+                weighted.append((image, (45 - delta) ** 2 + 1))
+        if not weighted:
+            nearest = min(direction_entries, key=lambda item: angular_delta(angle, item[1]))
+            weighted = [(nearest[2], 1)]
+        blend_many(weighted).save(OUT / "look-angle" / f"{angle_slug(angle)}.png")
+
+
 def normalize_frame(frame: Image.Image) -> Image.Image:
     keyed = green_to_alpha(frame)
     cropped = keyed.crop(SOURCE_ROI)
@@ -217,7 +273,7 @@ def normalize_frame(frame: Image.Image) -> Image.Image:
 
 
 def save_named_frames(frames: dict[int, Image.Image]) -> None:
-    for folder in ["look", "look-transition", "blink", "wave"]:
+    for folder in ["look", "look-angle", "blink", "wave"]:
         (OUT / folder).mkdir(parents=True, exist_ok=True)
 
     processed = {index: normalize_frame(frame) for index, frame in frames.items()}
@@ -229,12 +285,7 @@ def save_named_frames(frames: dict[int, Image.Image]) -> None:
     ImageOps.mirror(processed[LOOK_FRAME_IDS["down-left"]]).save(OUT / "look" / "down-right.png")
 
     look_images = {path.stem: Image.open(path).convert("RGBA") for path in (OUT / "look").glob("*.png")}
-    center = look_images["center"]
-    for name, image in look_images.items():
-        if name == "center":
-            continue
-        for index, amount in enumerate(LOOK_TRANSITION_STEPS, start=1):
-            blend_frame(center, image, amount).save(OUT / "look-transition" / f"to-{name}-{index}.png")
+    generate_angle_frames(look_images)
 
     blink_base = processed[BLINK_FRAME_IDS["open"]]
     for name, frame_id in BLINK_FRAME_IDS.items():
@@ -248,7 +299,7 @@ def save_named_frames(frames: dict[int, Image.Image]) -> None:
 def build_preview() -> None:
     files = [
         *(OUT / "look").glob("*.png"),
-        *(OUT / "look-transition").glob("*.png"),
+        *(OUT / "look-angle").glob("*.png"),
         *(OUT / "blink").glob("*.png"),
         *(OUT / "wave").glob("*.png"),
     ]
@@ -283,7 +334,7 @@ def build_preview() -> None:
 def audit() -> None:
     files = sorted([
         *(OUT / "look").glob("*.png"),
-        *(OUT / "look-transition").glob("*.png"),
+        *(OUT / "look-angle").glob("*.png"),
         *(OUT / "blink").glob("*.png"),
         *(OUT / "wave").glob("*.png"),
     ])

@@ -46,49 +46,11 @@
     "down-right": `${frameBase}/look/down-right.png`
   } as const;
   type LookFrameName = keyof typeof lookFrames;
-  type DirectionalLookName = Exclude<LookFrameName, "center">;
-  const lookTransitionFrames: Record<DirectionalLookName, string[]> = {
-    up: [
-      `${frameBase}/look-transition/to-up-1.png`,
-      `${frameBase}/look-transition/to-up-2.png`,
-      `${frameBase}/look-transition/to-up-3.png`
-    ],
-    down: [
-      `${frameBase}/look-transition/to-down-1.png`,
-      `${frameBase}/look-transition/to-down-2.png`,
-      `${frameBase}/look-transition/to-down-3.png`
-    ],
-    left: [
-      `${frameBase}/look-transition/to-left-1.png`,
-      `${frameBase}/look-transition/to-left-2.png`,
-      `${frameBase}/look-transition/to-left-3.png`
-    ],
-    right: [
-      `${frameBase}/look-transition/to-right-1.png`,
-      `${frameBase}/look-transition/to-right-2.png`,
-      `${frameBase}/look-transition/to-right-3.png`
-    ],
-    "up-left": [
-      `${frameBase}/look-transition/to-up-left-1.png`,
-      `${frameBase}/look-transition/to-up-left-2.png`,
-      `${frameBase}/look-transition/to-up-left-3.png`
-    ],
-    "up-right": [
-      `${frameBase}/look-transition/to-up-right-1.png`,
-      `${frameBase}/look-transition/to-up-right-2.png`,
-      `${frameBase}/look-transition/to-up-right-3.png`
-    ],
-    "down-left": [
-      `${frameBase}/look-transition/to-down-left-1.png`,
-      `${frameBase}/look-transition/to-down-left-2.png`,
-      `${frameBase}/look-transition/to-down-left-3.png`
-    ],
-    "down-right": [
-      `${frameBase}/look-transition/to-down-right-1.png`,
-      `${frameBase}/look-transition/to-down-right-2.png`,
-      `${frameBase}/look-transition/to-down-right-3.png`
-    ]
-  };
+  const angleFrameStep = 10;
+  const angleFrameNames = Array.from({ length: 360 / angleFrameStep }, (_value, index) => index * angleFrameStep);
+  const angleFrames = Object.fromEntries(
+    angleFrameNames.map((angle) => [`a${String(angle).padStart(3, "0")}`, `${frameBase}/look-angle/a${String(angle).padStart(3, "0")}.png`])
+  ) as Record<string, string>;
   const waveFrames = [
     `${frameBase}/wave/wave-0.png`,
     `${frameBase}/wave/wave-1.png`,
@@ -122,20 +84,16 @@
     "樱花粉模式启动。",
     "记得不要提交密钥。"
   ];
-  const lookTransitionPreloads = Object.values(lookTransitionFrames).reduce<string[]>(
-    (all, frames) => [...all, ...frames],
-    []
-  );
-  const framePreloads = [...Object.values(lookFrames), ...lookTransitionPreloads, ...blinkFrames, ...waveFrames];
+  const framePreloads = [...Object.values(lookFrames), ...Object.values(angleFrames), ...blinkFrames, ...waveFrames];
   const framePromises = new Map<string, Promise<void>>();
   type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
   let displayedLook: keyof typeof lookFrames = "center";
+  let currentAngleFrame = "center";
   let currentAction: CharacterAction = "idle";
   let messageIndex = 0;
   let animationToken = 0;
-  let lookTransitionToken = 0;
-  let isLookTransitioning = false;
+  let lookToken = 0;
   let lastPointerAt = performance.now();
   let lastLookChangedAt = performance.now();
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
@@ -216,54 +174,26 @@
     return "center";
   };
 
-  const buildLookTransition = (from: LookFrameName, to: LookFrameName) => {
-    if (from === to) return [lookFrames[to]];
-    if (to === "center") {
-      if (from === "center") return [lookFrames.center];
-      return [...lookTransitionFrames[from as DirectionalLookName]].reverse().concat(lookFrames.center);
-    }
-    if (from === "center") {
-      return [...lookTransitionFrames[to], lookFrames[to]];
-    }
-    return [
-      ...[...lookTransitionFrames[from as DirectionalLookName]].reverse(),
-      lookFrames.center,
-      ...lookTransitionFrames[to],
-      lookFrames[to]
-    ];
-  };
-
-  const playLookTransition = async (look: LookFrameName) => {
-    if (!frame || reduceMotion.matches || currentAction !== "idle") return;
-    const token = ++lookTransitionToken;
-    const frames = buildLookTransition(displayedLook, look);
-    isLookTransitioning = true;
-    await warmFrames(frames);
-    if (token !== lookTransitionToken || currentAction !== "idle") return;
-    for (const src of frames) {
-      if (token !== lookTransitionToken || currentAction !== "idle") return;
-      setFrame(src);
-      await wait(46);
-    }
-    if (token === lookTransitionToken) {
-      displayedLook = look;
-      setFrame(lookFrames[look]);
-      isLookTransitioning = false;
-    }
-  };
-
   const setLook = (look: LookFrameName, forceFrame = false) => {
     if (!forceFrame && look === currentLook) return;
     currentLook = look;
     lastLookChangedAt = performance.now();
-    if (forceFrame || reduceMotion.matches || currentAction !== "idle") {
-      lookTransitionToken += 1;
-      isLookTransitioning = false;
-      displayedLook = look;
-      setFrame(lookFrames[currentLook]);
-      return;
-    }
-    void playLookTransition(look);
+    lookToken += 1;
+    displayedLook = look;
+    currentAngleFrame = look;
+    if (currentAction === "idle" || forceFrame) setFrame(lookFrames[currentLook]);
+  };
+
+  const setAngleLook = async (angleKey: string) => {
+    if (!frame || reduceMotion.matches || currentAction !== "idle" || currentAngleFrame === angleKey) return;
+    const src = angleFrames[angleKey];
+    if (!src) return;
+    const token = ++lookToken;
+    currentAngleFrame = angleKey;
+    displayedLook = "center";
+    lastLookChangedAt = performance.now();
+    await preloadFrame(src);
+    if (token === lookToken && currentAction === "idle") setFrame(src);
   };
 
   const playFrames = async (
@@ -274,8 +204,7 @@
   ) => {
     if (!frame || reduceMotion.matches) return;
     const token = ++animationToken;
-    lookTransitionToken += 1;
-    isLookTransitioning = false;
+    lookToken += 1;
     currentAction = action;
     character?.classList.remove("is-animating");
     await warmFrames(frames);
@@ -296,7 +225,7 @@
   const playBlink = () => {
     if (character?.classList.contains("is-hidden")) return;
     if (document.hidden || currentAction !== "idle" || currentLook !== "center" || displayedLook !== "center") return;
-    if (isLookTransitioning || performance.now() - lastLookChangedAt < 1100) return;
+    if (currentAngleFrame !== "center" || performance.now() - lastLookChangedAt < 1100) return;
     if (performance.now() - lastPointerAt < 2200) return;
     void playFrames(blinkSequence, "blink", 155, "center");
   };
@@ -304,7 +233,7 @@
   const playWave = () => {
     say();
     setLook("center", true);
-    void playFrames([...waveFrames, ...waveFrames.slice(0, -1).reverse(), lookFrames.center], "wave", 92, "center");
+    void playFrames([...waveFrames, lookFrames.center], "wave", 92, "center");
   };
 
   frame?.addEventListener("error", () => {
@@ -328,7 +257,7 @@
     setHidden(false);
     say("我回来啦。");
     setLook("center", true);
-    void playFrames([...waveFrames.slice(0, 6), lookFrames.center], "wave", 92, "center");
+    void playFrames([...waveFrames, lookFrames.center], "wave", 92, "center");
   });
 
   stage?.addEventListener("pointerdown", (event) => {
@@ -366,6 +295,14 @@
     dragStart = null;
   });
 
+  const pickAngleFrame = (dx: number, dy: number) => {
+    const distance = Math.hypot(dx, dy);
+    if (distance < 0.20) return "center";
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const normalized = (Math.round(((angle + 360) % 360) / angleFrameStep) * angleFrameStep) % 360;
+    return `a${String(normalized).padStart(3, "0")}`;
+  };
+
   if (character && frame && !reduceMotion.matches) {
     window.addEventListener(
       "pointermove",
@@ -378,9 +315,13 @@
         const dx = Math.max(-1, Math.min(1, (event.clientX - centerX) / 430));
         const dy = Math.max(-1, Math.min(1, (event.clientY - centerY) / 300));
         const nextLook = pickLookFrame(dx, dy);
+        const angleLook = pickAngleFrame(dx, dy);
 
-        if (nextLook !== currentLook) {
+        if (angleLook === "center") {
           setLook(nextLook);
+        } else {
+          currentLook = nextLook;
+          void setAngleLook(angleLook);
         }
       },
       { passive: true }
