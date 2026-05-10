@@ -8,12 +8,26 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "public" / "images" / "mascot-frames"
+BLINK_SRC = ROOT / "ChatGPT Image 2026年5月9日 17_10_19.png"
 LOOK_SRC = ROOT / "ChatGPT Image 2026年5月9日 17_10_55.png"
 WAVE_SRC = ROOT / "ChatGPT Image 2026年5月9日 16_58_49.png"
 
 CANVAS = (520, 560)
 BASELINE = 548
 PREVIEW_CELL = (188, 182)
+BLINK_FRAME_NAMES = ["open", "half-1", "half-2", "closed", "open-2"]
+BLINK_FACE_SHIFT_Y = 10
+BLINK_EXPRESSION_POLYGON = [
+    (212, 202),
+    (308, 202),
+    (357, 248),
+    (347, 315),
+    (306, 348),
+    (260, 362),
+    (214, 348),
+    (173, 315),
+    (163, 248),
+]
 WAVE_ARM_CUTS = [
     (344, 220),
     (342, 198),
@@ -229,6 +243,16 @@ def build_stable_wave_frame(base: Image.Image, source: Image.Image, index: int) 
     return repair_lower_garment_holes(frame, row_fill=False)
 
 
+def compose_blink_expression(base: Image.Image, donor: Image.Image) -> Image.Image:
+    shifted = Image.new("RGBA", CANVAS, (255, 255, 255, 0))
+    shifted.alpha_composite(donor.convert("RGBA"), (0, BLINK_FACE_SHIFT_Y))
+
+    mask = Image.new("L", CANVAS, 0)
+    ImageDraw.Draw(mask).polygon(BLINK_EXPRESSION_POLYGON, fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(4))
+    return Image.composite(shifted, base.convert("RGBA"), mask)
+
+
 def crop_grid(image: Image.Image, cols: int, rows: int, index: int) -> Image.Image:
     col = index % cols
     row = index // cols
@@ -280,7 +304,8 @@ def refine_up_down_look_frames() -> None:
     center = repair_lower_garment_holes(Image.open(OUT / "look" / "center.png").convert("RGBA"))
     center.save(OUT / "look" / "center.png")
 
-    up = repair_lower_garment_holes(normalize_frame(crop_grid(look_sheet, 3, 3, 2), target_height=527))
+    up_crop = crop_grid(look_sheet, 3, 3, 2)
+    up = repair_lower_garment_holes(normalize_frame(up_crop, target_height=527))
     w, h = look_sheet.size
     down_crop = look_sheet.crop((round(2 * w / 3), round(2 * h / 3) + 24, w, h))
     down = repair_lower_garment_holes(normalize_frame(down_crop, target_height=527))
@@ -296,6 +321,20 @@ def refine_up_down_look_frames() -> None:
     ImageOps.mirror(left).save(OUT / "look" / "right.png")
     ImageOps.mirror(up_left).save(OUT / "look" / "up-right.png")
     ImageOps.mirror(down_left).save(OUT / "look" / "down-right.png")
+
+
+def regenerate_blink_frames() -> None:
+    blink_sheet = Image.open(BLINK_SRC).convert("RGBA")
+    base = Image.open(OUT / "look" / "center.png").convert("RGBA")
+    for index, name in enumerate(BLINK_FRAME_NAMES):
+        if name in {"open", "open-2"}:
+            base.save(OUT / "blink" / f"{name}.png")
+            continue
+
+        crop = crop_strip(blink_sheet, len(BLINK_FRAME_NAMES), index)
+        donor = normalize_frame(crop, target_height=521)
+        frame = compose_blink_expression(base, donor)
+        frame.save(OUT / "blink" / f"{name}.png")
 
 
 def blend(a_path: Path, b_path: Path, out_path: Path, alpha: float) -> None:
@@ -316,7 +355,7 @@ def create_inbetweens() -> None:
 
 def align_all_bottoms() -> None:
     files = []
-    for sub in ["look", "wave"]:
+    for sub in ["look", "blink", "wave"]:
         files.extend((OUT / sub).glob("*.png"))
     for path in files:
         image = Image.open(path).convert("RGBA")
@@ -331,7 +370,7 @@ def align_all_bottoms() -> None:
 
 def quantize_pngs() -> None:
     files = []
-    for sub in ["look", "wave"]:
+    for sub in ["look", "blink", "wave"]:
         files.extend((OUT / sub).glob("*.png"))
     for png in sorted(files):
         image = Image.open(png).convert("RGBA")
@@ -373,8 +412,7 @@ def build_preview() -> None:
 
 
 def audit() -> None:
-    files = sorted([*(OUT / "look").glob("*.png"), *(OUT / "wave").glob("*.png")])
-    retained_blink_files = sorted((OUT / "blink").glob("*.png"))
+    files = sorted([*(OUT / "look").glob("*.png"), *(OUT / "blink").glob("*.png"), *(OUT / "wave").glob("*.png")])
     sizes = set()
     bottoms = set()
     for path in files:
@@ -383,10 +421,6 @@ def audit() -> None:
         bottoms.add(alpha_bbox(image)[3])
     assert sizes == {CANVAS}, sizes
     assert max(bottoms) - min(bottoms) <= 1, bottoms
-
-    for path in retained_blink_files:
-        image = Image.open(path).convert("RGBA")
-        assert image.size == CANVAS, (path, image.size)
 
     for left_name, right_name in [
         ("left.png", "right.png"),
@@ -398,14 +432,14 @@ def audit() -> None:
         assert ImageChops.difference(ImageOps.mirror(left), right).getbbox() is None
 
     print(
-        f"motion_frames={len(files)} retained_blink_frames={len(retained_blink_files)} "
-        f"sizes={sorted(sizes)} bottoms={sorted(bottoms)}"
+        f"motion_frames={len(files)} sizes={sorted(sizes)} bottoms={sorted(bottoms)}"
     )
 
 
 def main() -> None:
-    regenerate_wave_frames()
     refine_up_down_look_frames()
+    regenerate_blink_frames()
+    regenerate_wave_frames()
     create_inbetweens()
     align_all_bottoms()
     quantize_pngs()
