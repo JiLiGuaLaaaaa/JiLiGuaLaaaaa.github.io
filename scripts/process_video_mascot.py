@@ -32,18 +32,31 @@ BLINK_FRAME_IDS = {
     "closed": 115,
     "open-2": 130,
 }
+# Browser pointer angles: 0 right, 90 down, 180 left, 270 up.
+# These are real source-video frames; right-side angles are mirrored from them.
+LOOK_ANGLE_FRAME_IDS = {
+    90: 50,
+    100: 55,
+    110: 60,
+    120: 65,
+    130: 65,
+    140: 65,
+    150: 70,
+    160: 70,
+    170: 70,
+    180: 70,
+    190: 75,
+    200: 85,
+    210: 85,
+    220: 90,
+    230: 95,
+    240: 95,
+    250: 95,
+    260: 95,
+    270: 95,
+}
 WAVE_FRAME_IDS = [150, 155, 160, 165, 170, 180, 200, 230]
 LOOK_ANGLE_STEP = 10
-LOOK_VECTOR_WEIGHTS = {
-    "right": (1.0, 0.0),
-    "up-right": (1.0, -1.0),
-    "up": (0.0, -1.0),
-    "up-left": (-1.0, -1.0),
-    "left": (-1.0, 0.0),
-    "down-left": (-1.0, 1.0),
-    "down": (0.0, 1.0),
-    "down-right": (1.0, 1.0),
-}
 BLINK_FACE_PATCH = (205, 238, 515, 392)
 
 
@@ -212,51 +225,26 @@ def patch_blink_face(base: Image.Image, source: Image.Image) -> Image.Image:
     return patched
 
 
-def blend_frame(start: Image.Image, end: Image.Image, amount: float) -> Image.Image:
-    return Image.blend(start.convert("RGBA"), end.convert("RGBA"), amount)
-
-
-def blend_many(weighted_images: list[tuple[Image.Image, float]]) -> Image.Image:
-    base_array = np.zeros((CANVAS[1], CANVAS[0], 4), dtype=np.float32)
-    total = sum(weight for _image, weight in weighted_images)
-    if total <= 0:
-        raise ValueError("empty blend weights")
-    for image, weight in weighted_images:
-        base_array += np.asarray(image.convert("RGBA"), dtype=np.float32) * (weight / total)
-    return Image.fromarray(np.clip(base_array, 0, 255).astype(np.uint8), "RGBA")
-
-
 def angle_slug(angle: int) -> str:
     return f"a{angle + 360 if angle < 0 else angle:03d}"
 
 
-def angular_delta(a: float, b: float) -> float:
-    return abs((a - b + 180) % 360 - 180)
+def mirror_angle(angle: int) -> int:
+    return (180 - angle) % 360
 
 
-def direction_angle(dx: float, dy: float) -> float:
-    return (np.degrees(np.arctan2(dy, dx)) + 360) % 360
-
-
-def generate_angle_frames(look_images: dict[str, Image.Image]) -> None:
+def generate_angle_frames(processed: dict[int, Image.Image]) -> None:
     for path in (OUT / "look-angle").glob("*.png"):
         path.unlink()
 
-    direction_entries = [
-        (name, direction_angle(dx, dy), image)
-        for name, (dx, dy) in LOOK_VECTOR_WEIGHTS.items()
-        for image in [look_images[name]]
-    ]
+    real_angle_images = {angle: processed[frame_id] for angle, frame_id in LOOK_ANGLE_FRAME_IDS.items()}
     for angle in range(0, 360, LOOK_ANGLE_STEP):
-        weighted = []
-        for _name, direction, image in direction_entries:
-            delta = angular_delta(angle, direction)
-            if delta <= 45:
-                weighted.append((image, (45 - delta) ** 2 + 1))
-        if not weighted:
-            nearest = min(direction_entries, key=lambda item: angular_delta(angle, item[1]))
-            weighted = [(nearest[2], 1)]
-        blend_many(weighted).save(OUT / "look-angle" / f"{angle_slug(angle)}.png")
+        if angle in real_angle_images:
+            image = real_angle_images[angle]
+        else:
+            source_angle = mirror_angle(angle)
+            image = ImageOps.mirror(real_angle_images[source_angle])
+        image.save(OUT / "look-angle" / f"{angle_slug(angle)}.png")
 
 
 def normalize_frame(frame: Image.Image) -> Image.Image:
@@ -272,11 +260,29 @@ def normalize_frame(frame: Image.Image) -> Image.Image:
     return keep_main_subject(canvas)
 
 
+def trim_corner_artifacts(image: Image.Image) -> Image.Image:
+    clean = image.copy()
+    alpha = np.array(clean.getchannel("A"), dtype=np.uint8)
+    mask = Image.new("L", clean.size, 0)
+    draw = ImageDraw.Draw(mask)
+    width, height = clean.size
+    draw.rectangle((0, 0, 58, 210), fill=255)
+    draw.rectangle((width - 58, 0, width, 210), fill=255)
+    draw.rectangle((0, height - 95, 112, height), fill=255)
+    draw.rectangle((width - 112, height - 95, width, height), fill=255)
+    corner = np.array(mask, dtype=np.uint8) > 0
+    alpha[corner] = 0
+    clean.putalpha(Image.fromarray(alpha, "L"))
+    return clean
+
+
 def save_named_frames(frames: dict[int, Image.Image]) -> None:
     for folder in ["look", "look-angle", "blink", "wave"]:
         (OUT / folder).mkdir(parents=True, exist_ok=True)
 
     processed = {index: normalize_frame(frame) for index, frame in frames.items()}
+
+    processed = {index: trim_corner_artifacts(image) for index, image in processed.items()}
 
     for name, frame_id in LOOK_FRAME_IDS.items():
         processed[frame_id].save(OUT / "look" / f"{name}.png")
@@ -284,8 +290,7 @@ def save_named_frames(frames: dict[int, Image.Image]) -> None:
     ImageOps.mirror(processed[LOOK_FRAME_IDS["up-left"]]).save(OUT / "look" / "up-right.png")
     ImageOps.mirror(processed[LOOK_FRAME_IDS["down-left"]]).save(OUT / "look" / "down-right.png")
 
-    look_images = {path.stem: Image.open(path).convert("RGBA") for path in (OUT / "look").glob("*.png")}
-    generate_angle_frames(look_images)
+    generate_angle_frames(processed)
 
     blink_base = processed[BLINK_FRAME_IDS["open"]]
     for name, frame_id in BLINK_FRAME_IDS.items():
@@ -350,7 +355,7 @@ def audit() -> None:
 
 
 def main() -> None:
-    frame_ids = set(LOOK_FRAME_IDS.values()) | set(BLINK_FRAME_IDS.values()) | set(WAVE_FRAME_IDS)
+    frame_ids = set(LOOK_FRAME_IDS.values()) | set(LOOK_ANGLE_FRAME_IDS.values()) | set(BLINK_FRAME_IDS.values()) | set(WAVE_FRAME_IDS)
     frames = load_video_frames(frame_ids)
     save_named_frames(frames)
     build_preview()
