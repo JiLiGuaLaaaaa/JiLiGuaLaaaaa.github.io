@@ -5,9 +5,20 @@
   <div class="cursor-character__bubble" data-character-bubble>今天也要写点什么吗？</div>
   <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
     <img
-      class="cursor-character__frame"
+      class="cursor-character__frame is-visible"
       src="/images/video-mascot/look/center.png"
       alt=""
+      loading="eager"
+      decoding="async"
+      width="860"
+      height="680"
+      data-character-frame
+    />
+    <img
+      class="cursor-character__frame cursor-character__frame--buffer"
+      src="/images/video-mascot/look/center.png"
+      alt=""
+      aria-hidden="true"
       loading="eager"
       decoding="async"
       width="860"
@@ -28,7 +39,9 @@
   const bubble = character?.querySelector<HTMLElement>("[data-character-bubble]");
   const hideButton = character?.querySelector<HTMLButtonElement>("[data-character-hide]");
   const returnButton = document.querySelector<HTMLButtonElement>("[data-character-return]");
-  const frame = character?.querySelector<HTMLImageElement>("[data-character-frame]");
+  const frameLayers = Array.from(character?.querySelectorAll<HTMLImageElement>("[data-character-frame]") ?? []);
+  let activeFrame = frameLayers[0] ?? null;
+  let standbyFrame = frameLayers[1] ?? null;
   const missing = character?.querySelector<HTMLElement>("[data-character-missing]");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const positionKey = "blog-character-position";
@@ -85,7 +98,7 @@
     "记得不要提交密钥。"
   ];
   const framePreloads = [...Object.values(lookFrames), ...Object.values(angleFrames), ...blinkFrames, ...waveFrames];
-  const framePromises = new Map<string, Promise<void>>();
+  const framePromises = new Map<string, Promise<boolean>>();
   type CharacterAction = "idle" | "blink" | "wave";
   let currentLook: keyof typeof lookFrames = "center";
   let displayedLook: keyof typeof lookFrames = "center";
@@ -94,6 +107,9 @@
   let messageIndex = 0;
   let animationToken = 0;
   let lookToken = 0;
+  let frameSwapToken = 0;
+  let currentFrameSrc = activeFrame?.getAttribute("src") ?? "";
+  let hasVisibleFrame = Boolean(activeFrame);
   let lastPointerAt = performance.now();
   let lastLookChangedAt = performance.now();
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
@@ -107,20 +123,28 @@
 
     const image = new Image();
     image.decoding = "async";
-    const promise = new Promise<void>((resolve) => {
-      const finish = () => resolve();
+    const promise = new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (loaded: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(loaded);
+      };
       image.addEventListener(
         "load",
         () => {
           if (typeof image.decode === "function") {
-            void image.decode().catch(() => undefined).finally(finish);
+            void image.decode().then(
+              () => finish(true),
+              () => finish(true)
+            );
             return;
           }
-          finish();
+          finish(true);
         },
         { once: true }
       );
-      image.addEventListener("error", finish, { once: true });
+      image.addEventListener("error", () => finish(false), { once: true });
     });
 
     image.src = src;
@@ -130,11 +154,47 @@
 
   const warmFrames = (frames: string[]) => Promise.allSettled(frames.map((src) => preloadFrame(src)));
 
-  const setFrame = (src: string) => {
-    if (!frame) return;
-    if (frame.dataset.currentSrc === src) return;
-    frame.dataset.currentSrc = src;
-    frame.src = src;
+  const setFrame = async (src: string) => {
+    if (!activeFrame) return false;
+    if (currentFrameSrc === src && activeFrame.classList.contains("is-visible")) return true;
+
+    const token = ++frameSwapToken;
+    const loaded = await preloadFrame(src);
+    if (token !== frameSwapToken) return false;
+
+    if (!loaded) {
+      if (!hasVisibleFrame) {
+        missing?.classList.add("is-visible");
+      }
+      return false;
+    }
+
+    const nextFrame = standbyFrame ?? activeFrame;
+    if (nextFrame.getAttribute("src") !== src) {
+      nextFrame.src = src;
+    }
+
+    if (typeof nextFrame.decode === "function") {
+      await nextFrame.decode().catch(() => undefined);
+    }
+    if (token !== frameSwapToken) return false;
+
+    if (nextFrame !== activeFrame) {
+      nextFrame.dataset.currentSrc = src;
+      nextFrame.classList.add("is-visible");
+      activeFrame.classList.remove("is-visible");
+      const previousFrame = activeFrame;
+      activeFrame = nextFrame;
+      standbyFrame = previousFrame;
+    } else {
+      nextFrame.dataset.currentSrc = src;
+      nextFrame.classList.add("is-visible");
+    }
+
+    currentFrameSrc = src;
+    hasVisibleFrame = true;
+    missing?.classList.remove("is-visible");
+    return true;
   };
 
   const say = (text?: string) => {
@@ -181,11 +241,11 @@
     lookToken += 1;
     displayedLook = look;
     currentAngleFrame = look;
-    if (currentAction === "idle" || forceFrame) setFrame(lookFrames[currentLook]);
+    if (currentAction === "idle" || forceFrame) void setFrame(lookFrames[currentLook]);
   };
 
   const setAngleLook = async (angleKey: string) => {
-    if (!frame || reduceMotion.matches || currentAction !== "idle" || currentAngleFrame === angleKey) return;
+    if (!activeFrame || reduceMotion.matches || currentAction !== "idle" || currentAngleFrame === angleKey) return;
     const src = angleFrames[angleKey];
     if (!src) return;
     const token = ++lookToken;
@@ -193,7 +253,7 @@
     displayedLook = "center";
     lastLookChangedAt = performance.now();
     await preloadFrame(src);
-    if (token === lookToken && currentAction === "idle") setFrame(src);
+    if (token === lookToken && currentAction === "idle") await setFrame(src);
   };
 
   const playFrames = async (
@@ -202,7 +262,7 @@
     delay = 95,
     returnLook: LookFrameName = currentLook
   ) => {
-    if (!frame || reduceMotion.matches) return;
+    if (!activeFrame || reduceMotion.matches) return;
     const token = ++animationToken;
     lookToken += 1;
     currentAction = action;
@@ -212,7 +272,7 @@
     character?.classList.toggle("is-animating", action === "wave");
     for (const src of frames) {
       if (token !== animationToken) return;
-      setFrame(src);
+      await setFrame(src);
       await wait(delay);
     }
     if (token === animationToken) {
@@ -236,16 +296,17 @@
     void playFrames([...waveFrames, lookFrames.center], "wave", 92, "center");
   };
 
-  frame?.addEventListener("error", () => {
-    if (!frame || !missing) return;
-    frame.hidden = true;
-    missing.classList.add("is-visible");
-  });
-
-  frame?.addEventListener("load", () => {
-    if (!frame || !missing) return;
-    frame.hidden = false;
-    missing.classList.remove("is-visible");
+  frameLayers.forEach((layer) => {
+    layer.dataset.currentSrc = layer.getAttribute("src") ?? "";
+    layer.addEventListener("load", () => {
+      if (!layer.classList.contains("is-visible")) return;
+      hasVisibleFrame = true;
+      missing?.classList.remove("is-visible");
+    });
+    layer.addEventListener("error", () => {
+      if (hasVisibleFrame) return;
+      missing?.classList.add("is-visible");
+    });
   });
 
   stage?.addEventListener("click", () => {
@@ -303,7 +364,7 @@
     return `a${String(normalized).padStart(3, "0")}`;
   };
 
-  if (character && frame && !reduceMotion.matches) {
+  if (character && activeFrame && !reduceMotion.matches) {
     window.addEventListener(
       "pointermove",
       (event) => {
@@ -330,7 +391,7 @@
 
   applyStoredPosition();
   setHidden(localStorage.getItem(hiddenKey) === "1");
-  void warmFrames(framePreloads);
+  void warmFrames(framePreloads).then(() => character?.classList.add("are-frames-ready"));
   window.setInterval(playBlink, 5200);
   window.setInterval(() => {
     if (!document.hidden && !character?.classList.contains("is-hidden")) {
@@ -378,7 +439,7 @@
     position: relative;
     width: max-content;
     max-width: 190px;
-    margin: 0 auto -6px;
+    margin: 0 auto -4px;
     padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -409,10 +470,10 @@
 
   .cursor-character__stage {
     position: relative;
-    display: grid;
+    display: block;
     width: 100%;
-    min-height: 176px;
-    place-items: end center;
+    aspect-ratio: 860 / 500;
+    overflow: hidden;
     padding: 0;
     border: 0;
     background: transparent;
@@ -427,13 +488,24 @@
 
   .cursor-character__frame {
     display: block;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
     width: 100%;
     aspect-ratio: 860 / 680;
     max-height: 248px;
     object-fit: contain;
     object-position: center bottom;
     animation: floaty 4.8s ease-in-out infinite;
+    opacity: 0;
+    pointer-events: none;
     transform: translateZ(0);
+    transition: opacity 1ms linear;
+  }
+
+  .cursor-character__frame.is-visible {
+    opacity: 1;
   }
 
   .cursor-character.is-animating .cursor-character__frame {

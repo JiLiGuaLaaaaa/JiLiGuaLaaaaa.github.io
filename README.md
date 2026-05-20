@@ -48,7 +48,7 @@ draft: false
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - 评论占位：现在只留位置，不连接任何评论服务。
-- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏，不连接后端。组件会在播放前预解码图片以减少闪烁。
+- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏，不连接后端。组件会在播放前预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
 
 图片资源放在 `public/images/`：
 
@@ -60,7 +60,7 @@ draft: false
 - `scripts/process_video_mascot.py`：使用 `uv` 虚拟环境中的 `imageio`、`imageio-ffmpeg`、`numpy` 和 Pillow 从 `生成指定动作视频 (3).mp4` 抽帧；通过绿色优势色键、主体连通域保留、肤色/服饰保护、边缘反混色、去绿边和 alpha 柔化生成透明 PNG，再统一到 `860x680` 画布和同一底部基线。旧帧会在生成前清理，避免混入旧视频资源。
 - 重新处理视频帧前，先运行 `uv pip install pillow imageio imageio-ffmpeg numpy`，再运行 `uv run python scripts/process_video_mascot.py`。
 - `mascot-frames/` 和 `scripts/refine_mascot_frames.py`：保留上一版图片帧生成方案，作为备用资源，不再是当前网页主用小人。
-- 所有动作帧统一为同一画布和同一底部基线，避免动作之间忽大忽小；前端组件也使用同一宽高比，并预加载/解码全部动作帧，减少切帧闪烁。
+- 所有动作帧统一为同一画布和同一底部基线，避免动作之间忽大忽小；前端组件也使用同一宽高比，并预加载/解码全部动作帧。由于透明画布顶部留白较多，页面只在显示层裁掉顶部空白，让提示气泡更贴近可见人物，动作帧文件本身不改变。
 - `video-mascot/preview.jpg` 和 `video-mascot/audit/`：视频动作帧预览图、方向帧审查图、挥手帧审查图和深色边缘审查图，只用于本地检查，不提交到仓库。
 
 ## 部署
