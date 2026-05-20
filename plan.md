@@ -117,3 +117,6 @@
 - [x] 将全站背景恢复为用户背景图并添加柔和遮罩
 - [x] 将首页和通用顶部区域改成纯柔和渐变
 - [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；已确认 `site-bg.jpg` 只用于全站背景层，顶部区域不再引用该图；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）
+- [x] 更新背景图优先展示人物头部需求
+- [x] 调整全站背景图定位焦点
+- [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；背景定位已改为 `38% 18%` 并在移动端偏向 `34% 14%`；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）
