@@ -3,17 +3,29 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="页面不存在" description="这个页面不存在。">
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Not Found</p>
+      <h1>页面不存在</h1>
+      <p>可能是地址写错了，或者这个页面还没有创建。</p>
+    </div>
+  </section>
   <section class="narrow page-block not-found">
-    <p class="not-found__code">404</p>
-    <h1 class="section-title">页面不存在</h1>
-    <p class="muted">可能是地址写错了，或者这个页面还没有创建。</p>
-    <a class="home-link" href="/">返回首页</a>
+    <div class="vh-panel not-found__panel">
+      <p class="not-found__code">404</p>
+      <a class="home-link" href="/">返回首页</a>
+    </div>
   </section>
 </BaseLayout>
 
 <style>
   .not-found {
     min-height: 52vh;
+  }
+
+  .not-found__panel {
+    padding: 38px;
+    text-align: center;
   }
 
   .not-found__code {

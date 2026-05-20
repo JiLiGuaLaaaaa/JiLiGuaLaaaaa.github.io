@@ -1,0 +1,135 @@
+---
+import { siteConfig } from "@/config/site";
+
+interface Props {
+  postsCount?: number;
+  tagsCount?: number;
+}
+
+const { postsCount = 0, tagsCount = 0 } = Astro.props;
+---
+
+<aside class="profile-card card" aria-label="博客资料卡">
+  <img class="profile-card__avatar" src={siteConfig.avatar} alt={`${siteConfig.author} 的头像`} width="112" height="112" />
+  <div class="profile-card__body">
+    <h2>{siteConfig.author}</h2>
+    <p>{siteConfig.description}</p>
+  </div>
+  <dl class="profile-card__stats">
+    <div>
+      <dt>文章</dt>
+      <dd>{postsCount}</dd>
+    </div>
+    <div>
+      <dt>标签</dt>
+      <dd>{tagsCount}</dd>
+    </div>
+  </dl>
+  <nav class="profile-card__links" aria-label="快捷入口">
+    <a href="/archive/">归档</a>
+    <a href="/tags/">标签</a>
+    <a href="/rss.xml">RSS</a>
+  </nav>
+  <div class="profile-card__social" aria-label="公开社交信息">
+    <span>QQ</span>
+    <strong>{siteConfig.social.qq}</strong>
+  </div>
+</aside>
+
+<style>
+  .profile-card {
+    display: grid;
+    gap: 16px;
+    justify-items: center;
+    padding: 24px 20px;
+    text-align: center;
+  }
+
+  .profile-card__avatar {
+    width: 112px;
+    height: 112px;
+    border: 4px solid color-mix(in srgb, var(--surface), white 40%);
+    border-radius: 50%;
+    box-shadow: 0 14px 30px rgba(143, 75, 121, 0.24);
+    object-fit: cover;
+  }
+
+  .profile-card__body h2 {
+    margin: 0;
+    font-size: 1.28rem;
+    line-height: 1.25;
+  }
+
+  .profile-card__body p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+
+  .profile-card__stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 10%);
+  }
+
+  .profile-card__stats div {
+    padding: 12px;
+  }
+
+  .profile-card__stats div + div {
+    border-left: 1px solid var(--border);
+  }
+
+  .profile-card__stats dt {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .profile-card__stats dd {
+    margin: 2px 0 0;
+    color: var(--accent-strong);
+    font-size: 1.4rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .profile-card__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .profile-card__links a {
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.86rem;
+    text-decoration: none;
+  }
+
+  .profile-card__social {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 8%);
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .profile-card__social strong {
+    color: var(--text);
+    font-weight: 800;
+  }
+</style>

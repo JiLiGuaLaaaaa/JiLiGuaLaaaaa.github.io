@@ -15,12 +15,17 @@ const { tag, posts } = Astro.props;
 ---
 
 <BaseLayout title={`标签：${tag}`} description={`标签 ${tag} 下的文章。`}>
-  <section class="narrow page-block">
-    <h1 class="section-title">标签：{tag}</h1>
-    <p class="muted">共 {posts.length} 篇文章。</p>
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Tag</p>
+      <h1>标签：{tag}</h1>
+      <p>共 {posts.length} 篇文章。</p>
+    </div>
   </section>
-  <section class="container post-list" aria-label={`${tag} 标签文章列表`}>
-    {posts.map((post) => <PostCard post={post} />)}
+  <section class="page-block">
+    <div class="container post-list" aria-label={`${tag} 标签文章列表`}>
+      {posts.map((post) => <PostCard post={post} />)}
+    </div>
   </section>
 </BaseLayout>
 
@@ -28,6 +33,5 @@ const { tag, posts } = Astro.props;
   .post-list {
     display: grid;
     gap: 18px;
-    padding-bottom: 56px;
   }
 </style>

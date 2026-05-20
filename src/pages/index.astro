@@ -1,94 +1,228 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import PostCard from "@/components/PostCard.astro";
+import ProfileCard from "@/components/ProfileCard.astro";
 import { siteConfig } from "@/config/site";
-import { getAllTags, getPublishedPosts } from "@/lib/posts";
+import { getAllTags, getPostSlug, getPublishedPosts } from "@/lib/posts";
 
 const posts = await getPublishedPosts();
-const featuredPosts = posts.slice(0, 3);
-const tags = getAllTags(posts).slice(0, 10);
+const featuredPosts = posts.slice(0, 5);
+const tags = getAllTags(posts).slice(0, 14);
+const latestPost = featuredPosts[0];
+const latestPostSlug = latestPost ? getPostSlug(latestPost) : "";
 ---
 
 <BaseLayout title={siteConfig.name} description={siteConfig.description}>
-  <section class="hero">
-    <div class="container hero__inner">
-      <div class="hero__copy">
-        <p class="hero__eyebrow">个人静态博客</p>
+  <section class="home-banner">
+    <div class="container home-banner__inner">
+      <div class="home-banner__copy">
+        <p class="home-banner__eyebrow">Welcome Back</p>
         <h1>{siteConfig.name}</h1>
         <p>{siteConfig.description}</p>
-        <div class="hero__actions">
-          <a class="button button--primary" href="/blog/">看文章</a>
-          <a class="button button--ghost" href="/about/">关于我</a>
-        </div>
       </div>
-      <div class="hero__panel" aria-label="博客概览">
-        <strong>{posts.length}</strong>
-        <span>篇公开文章</span>
-        <strong>{tags.length}</strong>
-        <span>个常用标签</span>
+      <div class="home-banner__actions">
+        <a class="button button--primary" href="/blog/">进入博客</a>
+        <a class="button button--ghost" href="/archive/">查看归档</a>
       </div>
     </div>
   </section>
 
   <section class="page-block">
-    <div class="container split-heading">
-      <div>
-        <h2 class="section-title">最近更新</h2>
-        <p class="muted">按发布时间整理的公开文章。</p>
-      </div>
-      <a class="text-link" href="/blog/">全部文章</a>
-    </div>
-    <div class="container post-grid">
-      {featuredPosts.map((post) => <PostCard post={post} />)}
-    </div>
-  </section>
+    <div class="container home-grid">
+      <div class="home-main">
+        <section class="notice-card vh-panel" aria-labelledby="notice-title">
+          <div>
+            <p class="panel-eyebrow">Notice</p>
+            <h2 id="notice-title">公开博客保持静态</h2>
+            <p>动态、留言、朋友圈等功能以后会单独放到服务器服务中；当前站点只保留快速、轻量、方便迁移的公开内容。</p>
+          </div>
+          <a class="text-link" href="/about/">了解更多</a>
+        </section>
 
-  <section class="page-block tag-band">
-    <div class="container">
-      <h2 class="section-title">标签</h2>
-      <div class="tag-list">
-        {tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag.name)}/`}>{tag.name} · {tag.count}</a>)}
+        {latestPost && (
+          <section class="featured-card vh-panel" aria-labelledby="featured-title">
+            <div>
+              <p class="panel-eyebrow">Latest</p>
+              <h2 id="featured-title">{latestPost.data.title}</h2>
+              <p>{latestPost.data.description}</p>
+            </div>
+            <a class="button button--primary" href={`/blog/${latestPostSlug}/`}>阅读最新文章</a>
+          </section>
+        )}
+
+        <div class="split-heading">
+          <div>
+            <p class="panel-eyebrow">Articles</p>
+            <h2 class="section-title">最近更新</h2>
+          </div>
+          <a class="text-link" href="/blog/">全部文章</a>
+        </div>
+        <div class="post-grid">
+          {featuredPosts.map((post) => <PostCard post={post} />)}
+        </div>
       </div>
+
+      <aside class="home-side" aria-label="侧边信息">
+        <ProfileCard postsCount={posts.length} tagsCount={tags.length} />
+        <section class="tag-panel vh-panel" aria-labelledby="home-tags-title">
+          <p class="panel-eyebrow">Tags</p>
+          <h2 id="home-tags-title">标签</h2>
+          <div class="tag-list">
+            {tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag.name)}/`}>{tag.name} · {tag.count}</a>)}
+          </div>
+        </section>
+      </aside>
     </div>
   </section>
 </BaseLayout>
 
 <style>
-  .hero {
-    padding: 74px 0 42px;
+  .home-banner {
+    position: relative;
+    min-height: 410px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
   }
 
-  .hero__inner {
+  .home-banner::before {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(90deg, rgba(255, 244, 248, 0.96), rgba(255, 244, 248, 0.62) 48%, rgba(255, 244, 248, 0.2)),
+      url("/images/site-bg.jpg") center / cover;
+    content: "";
+  }
+
+  .home-banner::after {
+    position: absolute;
+    inset: auto 0 0;
+    height: 120px;
+    background: linear-gradient(180deg, transparent, var(--bg));
+    content: "";
+  }
+
+  :global(:root[data-theme="dark"]) .home-banner::before {
+    background:
+      linear-gradient(90deg, rgba(32, 24, 32, 0.96), rgba(32, 24, 32, 0.68) 52%, rgba(32, 24, 32, 0.24)),
+      url("/images/site-bg.jpg") center / cover;
+  }
+
+  .home-banner__inner {
+    position: relative;
+    z-index: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 32px;
-    align-items: end;
+    min-height: 410px;
+    align-content: end;
+    gap: 24px;
+    padding: 78px 0 70px;
   }
 
-  .hero__eyebrow {
-    margin: 0 0 12px;
+  .home-banner__eyebrow,
+  .panel-eyebrow {
+    margin: 0 0 10px;
     color: var(--accent-strong);
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
-  .hero h1 {
+  .home-banner h1 {
     margin: 0;
-    font-size: clamp(2.4rem, 1.45rem + 4vw, 5rem);
-    line-height: 1.05;
+    max-width: 760px;
+    font-size: clamp(2.6rem, 1.55rem + 4vw, 5.4rem);
+    line-height: 1.04;
   }
 
-  .hero__copy > p:not(.hero__eyebrow) {
+  .home-banner__copy > p:not(.home-banner__eyebrow) {
     max-width: 620px;
-    margin: 22px 0 0;
+    margin: 20px 0 0;
     color: var(--muted);
-    font-size: 1.15rem;
+    font-size: 1.12rem;
   }
 
-  .hero__actions {
+  .home-banner__actions {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 28px;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 22px;
+    align-items: start;
+    margin-top: -92px;
+  }
+
+  .home-main,
+  .home-side {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    gap: 18px;
+  }
+
+  .home-side {
+    position: sticky;
+    top: calc(var(--header-height) + 20px);
+  }
+
+  .notice-card,
+  .featured-card,
+  .tag-panel {
+    padding: 22px;
+  }
+
+  .notice-card,
+  .featured-card {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .notice-card h2,
+  .featured-card h2,
+  .tag-panel h2 {
+    margin: 0;
+    font-size: 1.28rem;
+    line-height: 1.3;
+  }
+
+  .notice-card p:not(.panel-eyebrow),
+  .featured-card p:not(.panel-eyebrow) {
+    margin: 8px 0 0;
+    color: var(--muted);
+  }
+
+  .split-heading {
+    display: flex;
+    gap: 18px;
+    align-items: end;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+
+  .split-heading .section-title {
+    margin: 0;
+  }
+
+  .text-link {
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .post-grid {
+    display: grid;
+    gap: 18px;
+  }
+
+  .tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
   }
 
   .button {
@@ -99,8 +233,9 @@ const tags = getAllTags(posts).slice(0, 10);
     padding: 0 18px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-weight: 700;
+    font-weight: 800;
     text-decoration: none;
+    white-space: nowrap;
   }
 
   .button--primary {
@@ -114,63 +249,28 @@ const tags = getAllTags(posts).slice(0, 10);
     color: var(--text);
   }
 
-  .hero__panel {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 6px 12px;
-    padding: 18px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--muted);
-  }
-
-  .hero__panel strong {
-    color: var(--accent-strong);
-    font-size: 1.8rem;
-    line-height: 1;
-  }
-
-  .split-heading {
-    display: flex;
-    gap: 18px;
-    align-items: end;
-    justify-content: space-between;
-    margin-bottom: 18px;
-  }
-
-  .split-heading p {
-    margin: 0;
-  }
-
-  .text-link {
-    font-weight: 700;
-  }
-
-  .post-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
-  }
-
-  .tag-band {
-    background: color-mix(in srgb, var(--surface-muted), transparent 25%);
-  }
-
-  .tag-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  @media (max-width: 860px) {
-    .hero__inner,
-    .post-grid {
+  @media (max-width: 920px) {
+    .home-grid {
       grid-template-columns: 1fr;
+      margin-top: -58px;
     }
 
-    .hero {
-      padding-top: 46px;
+    .home-side {
+      position: static;
+      order: -1;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .home-banner,
+    .home-banner__inner {
+      min-height: 350px;
+    }
+
+    .notice-card,
+    .featured-card {
+      display: grid;
+      align-items: start;
     }
   }
 </style>

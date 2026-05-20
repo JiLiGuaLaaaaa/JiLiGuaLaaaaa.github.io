@@ -4,22 +4,108 @@ import { siteConfig } from "@/config/site";
 ---
 
 <BaseLayout title="关于" description={`关于 ${siteConfig.name}。`}>
-  <section class="narrow page-block about">
-    <h1 class="section-title">关于</h1>
-    <p>
-      这里是 {siteConfig.name}，一个保持静态、轻量和容易迁移的个人博客。
-    </p>
-    <p>
-      当前公开页面只使用 Astro、GitHub Pages 和 Cloudflare，不依赖 ECS、Docker、数据库或后端 API。
-    </p>
-    <p>
-      未来如果需要评论、统计、表单或私密日记，会作为独立动态服务部署，不和公开博客混在一起。
-    </p>
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">About</p>
+      <h1>关于</h1>
+      <p>关于 {siteConfig.name} 和这个静态博客。</p>
+    </div>
+  </section>
+  <section class="container page-block about">
+    <div class="about__grid">
+      <aside class="about__profile vh-panel" aria-label="个人资料">
+        <img class="about__avatar" src={siteConfig.avatar} alt={`${siteConfig.author} 的头像`} width="132" height="132" />
+        <h2>{siteConfig.author}</h2>
+        <p>{siteConfig.description}</p>
+        <div class="about__qq">
+          <span>QQ</span>
+          <strong>{siteConfig.social.qq}</strong>
+        </div>
+      </aside>
+      <div class="vh-panel about__panel">
+        <p>
+          这里是 {siteConfig.name}，一个保持静态、轻量和容易迁移的个人博客。
+        </p>
+        <p>
+          当前公开页面只使用 Astro、GitHub Pages 和 Cloudflare，不依赖 ECS、Docker、数据库或后端 API。
+        </p>
+        <p>
+          未来如果需要评论、统计、表单、动态、留言或私密日记，会作为独立动态服务部署，不和公开博客混在一起。
+        </p>
+      </div>
+    </div>
   </section>
 </BaseLayout>
 
 <style>
   .about {
     font-size: 1.08rem;
+  }
+
+  .about__grid {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+  }
+
+  .about__profile,
+  .about__panel {
+    padding: 26px;
+  }
+
+  .about__profile {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .about__avatar {
+    width: 132px;
+    height: 132px;
+    border: 4px solid color-mix(in srgb, var(--surface), white 40%);
+    border-radius: 50%;
+    box-shadow: 0 14px 30px rgba(143, 75, 121, 0.24);
+    object-fit: cover;
+  }
+
+  .about__profile h2 {
+    margin: 16px 0 4px;
+    font-size: 1.35rem;
+  }
+
+  .about__profile p {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .about__qq {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 18px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    color: var(--muted);
+  }
+
+  .about__qq strong {
+    color: var(--text);
+  }
+
+  .about__panel p:first-child {
+    margin-top: 0;
+  }
+
+  .about__panel p:last-child {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 780px) {
+    .about__grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

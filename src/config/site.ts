@@ -3,5 +3,10 @@ export const siteConfig = {
   description: "这个人懒死了，什么介绍都没有",
   author: "辣子鸡丁砂锅",
   url: "https://blog.20050619.xyz",
-  language: "zh-CN"
+  language: "zh-CN",
+  icon: "/images/site-icon.png",
+  avatar: "/images/blog-avatar.png",
+  social: {
+    qq: "1640203349"
+  }
 } as const;

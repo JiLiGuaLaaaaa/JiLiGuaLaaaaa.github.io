@@ -6,11 +6,18 @@ const tags = getAllTags(await getPublishedPosts());
 ---
 
 <BaseLayout title="标签" description="按标签浏览公开文章。">
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Tags</p>
+      <h1>标签</h1>
+      <p>按主题整理文章。</p>
+    </div>
+  </section>
   <section class="narrow page-block">
-    <h1 class="section-title">标签</h1>
-    <p class="muted">按主题整理文章。</p>
-    <div class="tag-list">
-      {tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag.name)}/`}>{tag.name} · {tag.count}</a>)}
+    <div class="tag-panel vh-panel">
+      <div class="tag-list">
+        {tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag.name)}/`}>{tag.name} · {tag.count}</a>)}
+      </div>
     </div>
   </section>
 </BaseLayout>
@@ -20,6 +27,9 @@ const tags = getAllTags(await getPublishedPosts());
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    margin-top: 22px;
+  }
+
+  .tag-panel {
+    padding: 26px;
   }
 </style>

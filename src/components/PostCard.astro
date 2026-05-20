@@ -25,7 +25,28 @@ const slug = getPostSlug(post);
 
 <style>
   .post-card {
+    position: relative;
     padding: 22px;
+    overflow: hidden;
+    transition:
+      border-color 160ms ease,
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .post-card::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--link), white 18%));
+    content: "";
+    opacity: 0.76;
+  }
+
+  .post-card:hover {
+    border-color: color-mix(in srgb, var(--accent), var(--border) 40%);
+    box-shadow: 0 22px 54px rgba(128, 70, 105, 0.18);
+    transform: translateY(-2px);
   }
 
   .post-card__title {
@@ -35,13 +56,14 @@ const slug = getPostSlug(post);
 
   .post-card__title h2 {
     margin: 0;
-    font-size: 1.35rem;
+    font-size: 1.28rem;
     line-height: 1.35;
   }
 
   .post-card__description {
     margin: 12px 0 18px;
     color: var(--muted);
+    font-size: 0.96rem;
   }
 
   .post-card__meta {

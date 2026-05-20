@@ -1,18 +1,20 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
-import CommentPlaceholder from "@/components/CommentPlaceholder.astro";
-import { formatDate, type BlogPost } from "@/lib/posts";
+import ProfileCard from "@/components/ProfileCard.astro";
+import { formatDate, getAllTags, getPublishedPosts, type BlogPost } from "@/lib/posts";
 
 interface Props {
   post: BlogPost;
 }
 
 const { post } = Astro.props;
+const allPosts = await getPublishedPosts();
+const allTags = getAllTags(allPosts);
 ---
 
 <BaseLayout title={post.data.title} description={post.data.description}>
-  <article class="narrow page-block">
-    <header class="article-head">
+  <section class="article-banner">
+    <div class="container article-banner__inner">
       <div class="article-head__tags">
         {post.data.tags.map((tag) => <a class="pill" href={`/tags/${encodeURIComponent(tag)}/`}>{tag}</a>)}
       </div>
@@ -20,26 +22,58 @@ const { post } = Astro.props;
       <p>{post.data.description}</p>
       <div class="article-head__meta">
         <time datetime={post.data.pubDate.toISOString()}>发布于 {formatDate(post.data.pubDate)}</time>
-        {
-          post.data.updatedDate && (
-            <time datetime={post.data.updatedDate.toISOString()}>
-              更新于 {formatDate(post.data.updatedDate)}
-            </time>
-          )
-        }
+        {post.data.updatedDate && <time datetime={post.data.updatedDate.toISOString()}>更新于 {formatDate(post.data.updatedDate)}</time>}
       </div>
-    </header>
-    <div class="article-content" data-pagefind-body>
-      <slot />
     </div>
-    <CommentPlaceholder />
-  </article>
+  </section>
+
+  <section class="page-block">
+    <div class="container layout-grid">
+      <article class="article-shell vh-panel">
+        <div class="article-content" data-pagefind-body>
+          <slot />
+        </div>
+      </article>
+      <div class="layout-sidebar">
+        <ProfileCard postsCount={allPosts.length} tagsCount={allTags.length} />
+      </div>
+    </div>
+  </section>
 </BaseLayout>
 
 <style>
-  .article-head {
-    padding-bottom: 28px;
+  .article-banner {
+    position: relative;
+    overflow: hidden;
     border-bottom: 1px solid var(--border);
+  }
+
+  .article-banner::before {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(255, 244, 248, 0.4), rgba(255, 244, 248, 0.92)),
+      url("/images/site-bg.jpg") center / cover;
+    content: "";
+  }
+
+  :global(:root[data-theme="dark"]) .article-banner::before {
+    background:
+      linear-gradient(180deg, rgba(32, 24, 32, 0.38), rgba(32, 24, 32, 0.92)),
+      url("/images/site-bg.jpg") center / cover;
+  }
+
+  .article-banner__inner {
+    position: relative;
+    display: grid;
+    gap: 16px;
+    min-height: 280px;
+    align-content: end;
+    padding: 62px 0 38px;
+  }
+
+  .article-shell {
+    padding: clamp(22px, 4vw, 46px);
   }
 
   .article-head__tags {
@@ -49,13 +83,13 @@ const { post } = Astro.props;
     margin-bottom: 18px;
   }
 
-  .article-head h1 {
+  .article-banner h1 {
     margin: 0;
     font-size: clamp(2rem, 1.4rem + 2.2vw, 3.4rem);
     line-height: 1.18;
   }
 
-  .article-head p {
+  .article-banner p {
     margin: 18px 0 0;
     color: var(--muted);
     font-size: 1.08rem;

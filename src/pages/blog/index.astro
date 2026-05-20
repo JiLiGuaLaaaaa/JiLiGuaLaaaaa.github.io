@@ -1,25 +1,96 @@
 ---
 import PostCard from "@/components/PostCard.astro";
+import ProfileCard from "@/components/ProfileCard.astro";
 import BaseLayout from "@/layouts/BaseLayout.astro";
+import { getAllTags } from "@/lib/posts";
 import { getPublishedPosts } from "@/lib/posts";
 
 const posts = await getPublishedPosts();
+const tags = getAllTags(posts);
 ---
 
 <BaseLayout title="博客" description="辣子鸡丁砂锅的全部公开文章。">
-  <section class="narrow page-block">
-    <h1 class="section-title">博客</h1>
-    <p class="muted">全部公开文章都在这里，草稿不会出现在生产页面中。</p>
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Articles</p>
+      <h1>博客</h1>
+      <p>全部公开文章都在这里，草稿不会出现在生产页面中。</p>
+    </div>
   </section>
-  <section class="container post-list" aria-label="文章列表">
-    {posts.map((post) => <PostCard post={post} />)}
+  <section class="page-block">
+    <div class="container layout-grid">
+      <div class="blog-main">
+        <section class="blog-summary vh-panel" aria-label="博客概览">
+          <div>
+            <span>文章</span>
+            <strong>{posts.length}</strong>
+          </div>
+          <div>
+            <span>标签</span>
+            <strong>{tags.length}</strong>
+          </div>
+          <div>
+            <span>路径</span>
+            <strong>/blog/</strong>
+          </div>
+        </section>
+        <div class="post-list" aria-label="文章列表">
+        {posts.map((post) => <PostCard post={post} />)}
+        </div>
+      </div>
+      <div class="layout-sidebar">
+        <ProfileCard postsCount={posts.length} tagsCount={tags.length} />
+      </div>
+    </div>
   </section>
 </BaseLayout>
 
 <style>
+  .blog-main {
+    display: grid;
+    gap: 18px;
+  }
+
+  .blog-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: hidden;
+  }
+
+  .blog-summary div {
+    display: grid;
+    gap: 4px;
+    padding: 18px 20px;
+  }
+
+  .blog-summary div + div {
+    border-left: 1px solid var(--border);
+  }
+
+  .blog-summary span {
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+
+  .blog-summary strong {
+    color: var(--accent-strong);
+    font-size: 1.32rem;
+    line-height: 1;
+  }
+
   .post-list {
     display: grid;
     gap: 18px;
-    padding-bottom: 56px;
+  }
+
+  @media (max-width: 620px) {
+    .blog-summary {
+      grid-template-columns: 1fr;
+    }
+
+    .blog-summary div + div {
+      border-top: 1px solid var(--border);
+      border-left: 0;
+    }
   }
 </style>

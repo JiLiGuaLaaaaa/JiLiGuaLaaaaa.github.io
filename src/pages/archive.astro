@@ -6,25 +6,28 @@ const groups = getArchiveGroups(await getPublishedPosts());
 ---
 
 <BaseLayout title="归档" description="按年份浏览公开文章。">
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Timeline</p>
+      <h1>归档</h1>
+      <p>按发布时间整理所有公开文章。</p>
+    </div>
+  </section>
   <section class="narrow page-block">
-    <h1 class="section-title">归档</h1>
-    <p class="muted">按发布时间整理所有公开文章。</p>
-    <div class="archive">
-      {
-        groups.map((group) => (
-          <section class="archive__year" aria-labelledby={`year-${group.year}`}>
-            <h2 id={`year-${group.year}`}>{group.year}</h2>
-            <ol>
-              {group.items.map((post) => (
-                <li>
-                  <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
-                  <a href={`/blog/${getPostSlug(post)}/`}>{post.data.title}</a>
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))
-      }
+    <div class="archive vh-panel">
+      {groups.map((group) => (
+        <section class="archive__year" aria-labelledby={`year-${group.year}`}>
+          <h2 id={`year-${group.year}`}>{group.year}</h2>
+          <ol>
+            {group.items.map((post) => (
+              <li>
+                <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
+                <a href={`/blog/${getPostSlug(post)}/`}>{post.data.title}</a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
     </div>
   </section>
 </BaseLayout>
@@ -33,7 +36,7 @@ const groups = getArchiveGroups(await getPublishedPosts());
   .archive {
     display: grid;
     gap: 28px;
-    margin-top: 28px;
+    padding: 26px;
   }
 
   .archive__year h2 {

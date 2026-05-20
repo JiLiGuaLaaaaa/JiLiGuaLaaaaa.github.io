@@ -3,13 +3,21 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="搜索" description="搜索公开文章。">
+  <section class="page-hero">
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Search</p>
+      <h1>搜索</h1>
+      <p>搜索公开文章的标题、摘要和标签。</p>
+    </div>
+  </section>
   <section class="narrow page-block search-page">
-    <h1 class="section-title">搜索</h1>
-    <label class="search-box">
-      <span>关键词</span>
-      <input type="search" placeholder="搜索标题、摘要或标签" data-search-input />
-    </label>
-    <div class="search-results" data-search-results aria-live="polite"></div>
+    <div class="vh-panel search-page__panel">
+      <label class="search-box">
+        <span>关键词</span>
+        <input type="search" placeholder="搜索标题、摘要或标签" data-search-input />
+      </label>
+      <div class="search-results" data-search-results aria-live="polite"></div>
+    </div>
   </section>
 </BaseLayout>
 
@@ -86,7 +94,10 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
   .search-box {
     display: grid;
     gap: 8px;
-    margin-top: 22px;
+  }
+
+  .search-page__panel {
+    padding: 26px;
   }
 
   .search-box span {

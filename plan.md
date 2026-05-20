@@ -93,3 +93,18 @@
 - [x] 调整小人气泡/箭头距离并保持动作帧不变
 - [x] 修复前端切帧闪烁并更新说明
 - [x] 运行可用检查并汇报结果
+- [x] 更新 vhAstro 主题迁移、头像、小人保留和 question.md 需求
+- [x] 研究 vhAstro-Theme 结构、许可证和可迁移范围
+- [x] 保存当前小人功能并确认迁移边界
+- [x] 复制网页头像和博客头像到公开资源目录
+- [x] 创建 question.md 记录待用户确认的主题构思问题
+- [x] 迁移博客视觉到 vhAstro 风格并禁用评论功能
+- [x] 将当前互动小人接入新主题布局
+- [x] 更新 README 中的主题、头像和小人说明
+- [x] 运行可用检查并汇报结果（`pnpm install --frozen-lockfile`、`git diff --check`、`tsc --noEmit`、敏感词扫描和忽略规则检查已完成；`pnpm build` 在当前沙箱内因 Astro/Vite `spawn EPERM` 失败，非沙箱重跑申请被自动审批 429 限流阻塞，需在本机或 GitHub Actions 再跑）
+- [x] 根据 question.md 回答更新主题设计需求
+- [x] 调整站点配置和资料卡公开 QQ 信息
+- [x] 移除当前评论占位显示并保持不接入真实评论
+- [x] 优化首页、文章列表和关于页为更贴近 vhAstro 的布局
+- [x] 更新 README 和 question.md 状态说明
+- [x] 运行可用检查并汇报结果（`pnpm install --frozen-lockfile`、`tsc --noEmit`、`git diff --check`、敏感词扫描和评论接入扫描已完成；`pnpm build` 在当前沙箱内仍因 Astro/Vite `spawn EPERM` 失败，需在本机或 GitHub Actions 再跑）
