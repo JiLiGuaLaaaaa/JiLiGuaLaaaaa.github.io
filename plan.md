@@ -113,3 +113,7 @@
 - [x] 移除博客概览中的路径字段
 - [x] 优化背景图为单层 Banner 展示并取消难看的双背景叠加
 - [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；已确认旧全站背景图层和博客路径字段移除；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）
+- [x] 更新背景图全站使用、顶部柔和渐变需求
+- [x] 将全站背景恢复为用户背景图并添加柔和遮罩
+- [x] 将首页和通用顶部区域改成纯柔和渐变
+- [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；已确认 `site-bg.jpg` 只用于全站背景层，顶部区域不再引用该图；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）

@@ -56,23 +56,27 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(
-    135deg,
-    rgba(255, 244, 248, 0.88),
-    rgba(255, 225, 238, 0.82) 44%,
-    rgba(235, 247, 255, 0.74)
-  );
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 244, 248, 0.9),
+      rgba(255, 225, 238, 0.8) 44%,
+      rgba(235, 247, 255, 0.74)
+    ),
+    url("/images/site-bg.jpg") center / cover fixed;
   content: "";
   pointer-events: none;
 }
 
 :root[data-theme="dark"] body::before {
-  background: linear-gradient(
-    135deg,
-    rgba(32, 24, 32, 0.94),
-    rgba(58, 35, 52, 0.9) 46%,
-    rgba(28, 43, 58, 0.82)
-  );
+  background:
+    linear-gradient(
+      135deg,
+      rgba(32, 24, 32, 0.92),
+      rgba(58, 35, 52, 0.88) 46%,
+      rgba(28, 43, 58, 0.82)
+    ),
+    url("/images/site-bg.jpg") center / cover fixed;
 }
 
 a {
@@ -181,15 +185,17 @@ button {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(255, 244, 248, 0.9), rgba(255, 244, 248, 0.68) 48%, rgba(255, 244, 248, 0.24)),
-    url("/images/site-bg.jpg") center 38% / cover no-repeat;
+    radial-gradient(circle at 18% 24%, rgba(255, 198, 222, 0.82), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(194, 237, 255, 0.58), transparent 32%),
+    linear-gradient(135deg, rgba(255, 244, 248, 0.98), rgba(255, 226, 239, 0.94) 52%, rgba(237, 249, 255, 0.9));
   content: "";
 }
 
 :root[data-theme="dark"] .page-hero::before {
   background:
-    linear-gradient(90deg, rgba(32, 24, 32, 0.95), rgba(32, 24, 32, 0.74) 52%, rgba(32, 24, 32, 0.34)),
-    url("/images/site-bg.jpg") center 38% / cover no-repeat;
+    radial-gradient(circle at 18% 24%, rgba(126, 54, 88, 0.58), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(50, 83, 103, 0.46), transparent 32%),
+    linear-gradient(135deg, rgba(32, 24, 32, 0.98), rgba(58, 35, 52, 0.95) 52%, rgba(28, 43, 58, 0.9));
 }
 
 .page-hero__inner {
