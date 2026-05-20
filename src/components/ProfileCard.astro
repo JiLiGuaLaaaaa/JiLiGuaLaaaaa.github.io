@@ -4,9 +4,16 @@ import { siteConfig } from "@/config/site";
 interface Props {
   postsCount?: number;
   tagsCount?: number;
+  hotTags?: Array<{
+    name: string;
+    count: number;
+  }>;
 }
 
-const { postsCount = 0, tagsCount = 0 } = Astro.props;
+const { postsCount = 0, tagsCount = 0, hotTags = [] } = Astro.props;
+const visibleHotTags = [...hotTags]
+  .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"))
+  .slice(0, 12);
 ---
 
 <aside class="profile-card card" aria-label="博客资料卡">
@@ -25,11 +32,19 @@ const { postsCount = 0, tagsCount = 0 } = Astro.props;
       <dd>{tagsCount}</dd>
     </div>
   </dl>
-  <nav class="profile-card__links" aria-label="快捷入口">
-    <a href="/archive/">归档</a>
-    <a href="/tags/">标签</a>
-    <a href="/rss.xml">RSS</a>
-  </nav>
+  {visibleHotTags.length > 0 && (
+    <section class="profile-card__hot-tags" aria-labelledby="profile-hot-tags-title">
+      <h3 id="profile-hot-tags-title">热门标签</h3>
+      <div class="profile-card__tag-list">
+        {visibleHotTags.map((tag) => (
+          <a href={`/tags/${encodeURIComponent(tag.name)}/`}>
+            <span>{tag.name}</span>
+            <sup>{tag.count}</sup>
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
   <div class="profile-card__social" aria-label="公开社交信息">
     <span>QQ</span>
     <strong>{siteConfig.social.qq}</strong>
@@ -98,22 +113,45 @@ const { postsCount = 0, tagsCount = 0 } = Astro.props;
     line-height: 1;
   }
 
-  .profile-card__links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
+  .profile-card__hot-tags {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+    text-align: left;
   }
 
-  .profile-card__links a {
-    min-height: 30px;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
+  .profile-card__hot-tags h3 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+    font-weight: 900;
+  }
+
+  .profile-card__tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px 12px;
+  }
+
+  .profile-card__tag-list a {
+    display: inline-flex;
+    gap: 3px;
+    align-items: flex-start;
     color: var(--text);
-    font-size: 0.86rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.2;
     text-decoration: none;
+  }
+
+  .profile-card__tag-list a:hover {
+    color: var(--accent-strong);
+  }
+
+  .profile-card__tag-list sup {
+    color: var(--accent-strong);
+    font-size: 0.64rem;
+    line-height: 1;
   }
 
   .profile-card__social {

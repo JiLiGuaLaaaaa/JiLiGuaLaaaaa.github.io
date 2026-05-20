@@ -14,7 +14,6 @@ const tags = getAllTags(posts);
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Articles</p>
       <h1>博客</h1>
-      <p>全部公开文章都在这里，草稿不会出现在生产页面中。</p>
     </div>
   </section>
   <section class="page-block">
@@ -35,7 +34,7 @@ const tags = getAllTags(posts);
         </div>
       </div>
       <div class="layout-sidebar">
-        <ProfileCard postsCount={posts.length} tagsCount={tags.length} />
+        <ProfileCard postsCount={posts.length} tagsCount={tags.length} hotTags={tags} />
       </div>
     </div>
   </section>

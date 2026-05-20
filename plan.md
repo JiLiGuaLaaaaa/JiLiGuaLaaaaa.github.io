@@ -120,3 +120,10 @@
 - [x] 更新背景图优先展示人物头部需求
 - [x] 调整全站背景图定位焦点
 - [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；背景定位已改为 `38% 18%` 并在移动端偏向 `34% 14%`；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）
+- [x] 更新博客页文案、页脚徽章合并和资料卡热门标签需求
+- [x] 删除博客页顶部说明文案
+- [x] 合并页脚 RSS/Sitemap 徽章为两组按钮
+- [x] 将资料卡快捷按钮改为热门标签导航
+- [x] 更新 README 中的资料卡、页脚徽章和小人气泡文案说明
+- [x] 运行 TypeScript、依赖锁定安装、diff 空白和敏感词检查
+- [ ] 运行 `pnpm build`（当前环境仍因 Astro/Vite `spawn EPERM` 阻断，需在本机或 GitHub Actions 再跑）

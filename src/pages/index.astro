@@ -7,7 +7,8 @@ import { getAllTags, getPostSlug, getPublishedPosts } from "@/lib/posts";
 
 const posts = await getPublishedPosts();
 const featuredPosts = posts.slice(0, 5);
-const tags = getAllTags(posts).slice(0, 14);
+const allTags = getAllTags(posts);
+const tags = allTags.slice(0, 14);
 const latestPost = featuredPosts[0];
 const latestPostSlug = latestPost ? getPostSlug(latestPost) : "";
 ---
@@ -63,7 +64,7 @@ const latestPostSlug = latestPost ? getPostSlug(latestPost) : "";
       </div>
 
       <aside class="home-side" aria-label="侧边信息">
-        <ProfileCard postsCount={posts.length} tagsCount={tags.length} />
+        <ProfileCard postsCount={posts.length} tagsCount={allTags.length} hotTags={allTags} />
         <section class="tag-panel vh-panel" aria-labelledby="home-tags-title">
           <p class="panel-eyebrow">Tags</p>
           <h2 id="home-tags-title">标签</h2>
