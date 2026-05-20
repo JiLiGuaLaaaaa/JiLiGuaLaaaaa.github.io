@@ -62,18 +62,17 @@ draft: false
 
 图片资源放在 `public/images/`：
 
-- `site-icon.png`：网页图标，来自当前目录下的 `网页头像.png`。
-- `blog-avatar.png`：博客个人头像，来自当前目录下的 `博客头像.png`。
+- `site-icon.png`：网页图标。
+- `blog-avatar.png`：博客个人头像。
 - `site-bg.jpg`：全站页面背景图。页面会叠加柔和遮罩保证正文可读，并把背景焦点偏向人物头部；顶部 Banner / Hero 使用纯柔和渐变，不再裁切背景人物图。
 - `video-mascot/look/`：从 `生成指定动作视频 (3).mp4` 中重新抽取的视线方向帧，用于根据鼠标位置切换小人朝向；左右命名按网页鼠标方向修正，右向帧由左向真实帧镜像生成。
 - `video-mascot/look-angle/`：每 10° 一张的 36 张方向细分帧。现在优先从 `生成指定动作视频 (3).mp4` 的连续视线段抽取稳定真实帧，缺少的右侧对称角度使用真实帧镜像生成，不使用透明叠加、权重混合或插值补帧。生成脚本会输出审查表，记录每张角度帧的源帧号和是否镜像。
 - `video-mascot/blink/`：从视频闭眼段抽取并贴回正面身体轮廓的眨眼帧，实际网页只在正面闲置、没有方向过渡时播放，避免眨眼闪烁或突然跳帧。
 - `video-mascot/wave/`：从视频挥手段抽取的 8 个实帧，用于点击或显示时的挥手动作。点击一次只播放一次正向伸手/挥手序列，结束后回到正面帧。
-- `scripts/process_video_mascot.py`：使用 `uv` 虚拟环境中的 `imageio`、`imageio-ffmpeg`、`numpy` 和 Pillow 从 `生成指定动作视频 (3).mp4` 抽帧；通过绿色优势色键、主体连通域保留、肤色/服饰保护、边缘反混色、去绿边和 alpha 柔化生成透明 PNG，再统一到 `860x680` 画布和同一底部基线。旧帧会在生成前清理，避免混入旧视频资源。
+- `scripts/process_video_mascot.py`：使用 `uv` 虚拟环境中的 `imageio`、`imageio-ffmpeg`、`numpy` 和 Pillow 从本地 `生成指定动作视频 (3).mp4` 抽帧；通过绿色优势色键、主体连通域保留、肤色/服饰保护、边缘反混色、去绿边和 alpha 柔化生成透明 PNG，再统一到 `860x680` 画布和同一底部基线。
 - 重新处理视频帧前，先运行 `uv pip install pillow imageio imageio-ffmpeg numpy`，再运行 `uv run python scripts/process_video_mascot.py`。
-- `mascot-frames/` 和 `scripts/refine_mascot_frames.py`：保留上一版图片帧生成方案，作为备用资源，不再是当前网页主用小人。
 - 所有动作帧统一为同一画布和同一底部基线，避免动作之间忽大忽小；前端组件也使用同一宽高比，并预加载/解码全部动作帧。由于透明画布顶部留白较多，页面只在显示层裁掉顶部空白，让提示气泡更贴近可见人物，动作帧文件本身不改变。
-- `video-mascot/preview.jpg` 和 `video-mascot/audit/`：视频动作帧预览图、方向帧审查图、挥手帧审查图和深色边缘审查图，只用于本地检查，不提交到仓库。
+- 旧版小人抠图、旧动作帧、旧 refine 脚本、审查图和预览图已经清理；生成脚本产生的临时预览/审查文件只用于本地检查，不提交到仓库。
 
 小角色说话文案在 `src/components/CursorCharacter.astro` 中维护：
 

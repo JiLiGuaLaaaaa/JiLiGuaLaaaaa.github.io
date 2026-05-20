@@ -19,14 +19,8 @@ diary/
 *.sqlite
 *.db
 相关配置信息.txt
-back.png
-character.jpg
-ChatGPT Image*.png
 *.mp4
-public/images/mascot-cutout-preview.png
-public/images/mascot-frames/preview.jpg
-public/images/mascot-frames/eye-grid.jpg
-public/images/mascot-frames/candidate*.png
+public/images/mascot-frames/
 public/images/video-mascot/preview.jpg
 public/images/video-mascot/source-sample.jpg
 public/images/video-mascot/action-audit-source.jpg
@@ -36,7 +30,3 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-plan.md
-plan.md
-requirements.md
-README.md
