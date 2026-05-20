@@ -88,8 +88,8 @@ const latestPostSlug = latestPost ? getPostSlug(latestPost) : "";
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(90deg, rgba(255, 244, 248, 0.96), rgba(255, 244, 248, 0.62) 48%, rgba(255, 244, 248, 0.2)),
-      url("/images/site-bg.jpg") center / cover;
+      linear-gradient(90deg, rgba(255, 244, 248, 0.96), rgba(255, 244, 248, 0.6) 48%, rgba(255, 244, 248, 0.16)),
+      url("/images/site-bg.jpg") center 38% / cover no-repeat;
     content: "";
   }
 
@@ -103,8 +103,8 @@ const latestPostSlug = latestPost ? getPostSlug(latestPost) : "";
 
   :global(:root[data-theme="dark"]) .home-banner::before {
     background:
-      linear-gradient(90deg, rgba(32, 24, 32, 0.96), rgba(32, 24, 32, 0.68) 52%, rgba(32, 24, 32, 0.24)),
-      url("/images/site-bg.jpg") center / cover;
+      linear-gradient(90deg, rgba(32, 24, 32, 0.96), rgba(32, 24, 32, 0.68) 52%, rgba(32, 24, 32, 0.22)),
+      url("/images/site-bg.jpg") center 38% / cover no-repeat;
   }
 
   .home-banner__inner {

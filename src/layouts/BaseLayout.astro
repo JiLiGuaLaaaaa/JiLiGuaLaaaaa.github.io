@@ -68,11 +68,18 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
     <footer class="site-footer">
       <div class="container site-footer__inner">
         <p>© {new Date().getFullYear()} {siteConfig.author}</p>
-        <p>
-          <a href="/rss.xml">RSS</a>
-          <span aria-hidden="true"> · </span>
-          <a href="/sitemap-index.xml">Sitemap</a>
-        </p>
+        <nav class="feed-badges" aria-label="站点订阅和索引">
+          <a class="feed-badge feed-badge--seo" href="/robots.txt">
+            <span aria-hidden="true">◔</span>
+            <span>SEO</span>
+          </a>
+          <a class="feed-badge feed-badge--sitemap" href="/sitemap-index.xml">Sitemap</a>
+          <a class="feed-badge feed-badge--rss" href="/rss.xml">
+            <span aria-hidden="true">◔</span>
+            <span>订阅</span>
+          </a>
+          <a class="feed-badge feed-badge--plain" href="/rss.xml">RSS</a>
+        </nav>
       </div>
     </footer>
     <CursorCharacter />
@@ -150,6 +157,56 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
 
   .site-footer p {
     margin: 0;
+  }
+
+  .feed-badges {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .feed-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 20px;
+    padding: 0 6px;
+    border: 1px solid rgba(80, 65, 48, 0.24);
+    border-radius: 2px;
+    background: #dfd8c5;
+    color: #5f563f;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+    box-shadow:
+      inset 0 1px rgba(255, 255, 255, 0.38),
+      0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+  .feed-badge:hover {
+    transform: translateY(-1px);
+  }
+
+  .feed-badge--sitemap {
+    background: #839570;
+    color: #fff7e4;
+  }
+
+  .feed-badge--rss {
+    background: #ec873b;
+    color: #fffaf0;
+  }
+
+  .feed-badge--plain {
+    background: #f7f1df;
+    color: #665c42;
+  }
+
+  .feed-badge span[aria-hidden="true"] {
+    margin-right: 4px;
+    font-size: 13px;
+    transform: rotate(42deg);
   }
 
   @media (max-width: 760px) {

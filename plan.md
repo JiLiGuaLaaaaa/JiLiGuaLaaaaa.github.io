@@ -108,3 +108,8 @@
 - [x] 优化首页、文章列表和关于页为更贴近 vhAstro 的布局
 - [x] 更新 README 和 question.md 状态说明
 - [x] 运行可用检查并汇报结果（`pnpm install --frozen-lockfile`、`tsc --noEmit`、`git diff --check`、敏感词扫描和评论接入扫描已完成；`pnpm build` 在当前沙箱内仍因 Astro/Vite `spawn EPERM` 失败，需在本机或 GitHub Actions 再跑）
+- [x] 更新 RSS/Sitemap 徽章、博客概览和背景展示需求
+- [x] 实现 RSS/Sitemap 小徽章样式
+- [x] 移除博客概览中的路径字段
+- [x] 优化背景图为单层 Banner 展示并取消难看的双背景叠加
+- [x] 更新 README 并运行可用检查（`tsc --noEmit`、`git diff --check`、敏感词扫描通过；已确认旧全站背景图层和博客路径字段移除；`pnpm build` 仍被当前沙箱 Astro/Vite `spawn EPERM` 阻断）
