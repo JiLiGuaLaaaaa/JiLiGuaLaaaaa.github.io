@@ -5,6 +5,11 @@
 - `site-icon.png`：网页图标。
 - `blog-avatar.png`：博客资料卡和关于页头像。
 - `banner/`：博客、标签、归档、搜索、关于页面使用的主题 Banner 图片。
+  - `blog.png`：博客页 Banner。
+  - `tags.png`：标签页和标签详情页 Banner。
+  - `archive.png`：归档页 Banner。
+  - `search.png`：搜索页 Banner。
+  - `about.png`：关于页 Banner。
 - `video-mascot/`：右下角互动小人的正式动作帧。
 
 当前页面基础背景使用 CSS 渐变，不再把 `site-bg.jpg` 作为博客背景图。

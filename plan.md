@@ -72,6 +72,21 @@
 - [x] 修复 Banner 收起脚本在服务端构建阶段访问 `document` 的问题
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；确认已移除 `@/scripts/collapsible-banner` 服务端导入；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，无法在本地沙箱完成完整构建验证）
 
+## 本次 Banner 图片替换
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和当前 Banner 资源
+- [x] 用根目录新放入的 5 张 Banner 图片替换现有主题 Banner
+- [x] 更新 README 和资源说明中的 Banner 文件名
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；旧 `.jpg` 与根目录 `banner1-5.png` 引用扫描无命中；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，沙箱外重跑申请被自动审批系统拒绝，未能在本轮完成完整构建验证）
+
+## 本次短内容滚动和顶部栏收起
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和相关布局/样式文件
+- [x] 增加短内容页面的可滚动空白，保证 Banner 总能收起
+- [x] 实现顶部导航栏下滑收起、上滑显示
+- [x] 更新 README 中的交互说明
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；源码和文档资源引用扫描未发现旧 `.jpg` Banner、根目录 `banner1-5.png` 或旧服务端 Banner 脚本引用；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`

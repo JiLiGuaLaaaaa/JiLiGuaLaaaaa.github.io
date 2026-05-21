@@ -88,19 +88,36 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
     </footer>
     <CursorCharacter />
     <script>
-      const updateCollapsibleBanners = () => {
+      const siteHeader = document.querySelector(".site-header");
+      let lastScrollY = window.scrollY;
+
+      const updateScrollLayout = () => {
         const banners = Array.from(document.querySelectorAll("[data-collapsible-banner]"));
-        const shouldCollapse = window.scrollY > 36;
+        const currentScrollY = window.scrollY;
+        const shouldCollapse = currentScrollY > 36;
 
         for (const banner of banners) {
           banner.classList.toggle("is-collapsed", shouldCollapse);
         }
+
+        if (siteHeader) {
+          const scrollDelta = currentScrollY - lastScrollY;
+          const focusedInHeader =
+            document.activeElement instanceof HTMLElement &&
+            siteHeader.contains(document.activeElement);
+          const shouldHideHeader =
+            currentScrollY > 96 && scrollDelta > 4 && !focusedInHeader;
+
+          siteHeader.classList.toggle("is-hidden", shouldHideHeader);
+        }
+
+        lastScrollY = currentScrollY;
       };
 
-      updateCollapsibleBanners();
-      window.addEventListener("scroll", updateCollapsibleBanners, { passive: true });
-      window.addEventListener("resize", updateCollapsibleBanners, { passive: true });
-      window.addEventListener("pageshow", updateCollapsibleBanners);
+      updateScrollLayout();
+      window.addEventListener("scroll", updateScrollLayout, { passive: true });
+      window.addEventListener("resize", updateScrollLayout, { passive: true });
+      window.addEventListener("pageshow", updateScrollLayout);
     </script>
     <slot name="body-end" />
   </body>
@@ -114,6 +131,12 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--glass), transparent 6%);
     backdrop-filter: blur(18px);
+    transition: transform 260ms ease;
+    will-change: transform;
+  }
+
+  .site-header.is-hidden {
+    transform: translateY(-100%);
   }
 
   .site-header__inner {
@@ -295,6 +318,12 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
       grid-row: 2;
       align-self: center;
       justify-self: end;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-header {
+      transition: none;
     }
   }
 </style>

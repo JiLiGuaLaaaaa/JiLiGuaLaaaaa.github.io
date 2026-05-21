@@ -120,6 +120,8 @@ draft: false
 - 页面基础背景使用简单柔和渐变，不再把 `public/images/site-bg.jpg` 作为博客页面背景图
 - 顶部 Banner / Hero 使用 `public/images/banner/` 中的主题图片；展示效果应填满整个 Banner，同时保证图片中的主要人物完整可见
 - 博客、标签、标签详情、归档、搜索、关于等主题页的 Banner 在向下滚动时应统一流畅收起，让正文区域完整展示
+- 即使页面正文内容很少，也要保留足够的页面可滚动空间，保证用户仍然可以向下滚动并触发 Banner 收起；不足内容用空白区域补齐，不用无意义内容填充
+- 顶部导航栏应在用户向下滚动时收起，向上滚动时重新显示；页面回到顶部时必须显示，并尊重 `prefers-reduced-motion`
 - 不再维护单独主界面；根路径 `/` 进入后应直接跳转到博客页 `/blog/`
 - 文章列表卡片应支持整张卡片点击进入文章，卡片内标签链接仍应可以单独点击
 - 移动端顶部导航应保持紧凑，暗色/亮色模式按钮不要单独占一整行
@@ -134,6 +136,11 @@ draft: false
 - `public/images/site-icon.png`：网页图标
 - `public/images/blog-avatar.png`：博客头像
 - `public/images/banner/`：主题 Banner 图片
+  - `blog.png`：博客页 Banner
+  - `tags.png`：标签页和标签详情页 Banner
+  - `archive.png`：归档页 Banner
+  - `search.png`：搜索页 Banner
+  - `about.png`：关于页 Banner
 - `public/images/video-mascot/`：当前主用小人动作帧
 
 不要再保留旧版小人帧、旧抠图、旧预览图、审查图或根目录重复素材作为仓库内容。
