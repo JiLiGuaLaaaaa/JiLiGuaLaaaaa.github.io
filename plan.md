@@ -30,6 +30,12 @@
 - [x] 更新 README 和 `public/images/README.md` 中的资源说明
 - [x] 运行可用检查并记录结果（`tsc --noEmit`、`git diff --check`、`corepack pnpm install --frozen-lockfile`、敏感词扫描通过；`corepack pnpm build` 在沙箱内仍因 `spawn EPERM` 失败，但沙箱外重跑已通过并生成 14 个页面）
 
+## 本次背景微调
+
+- [x] 更新背景右移需求
+- [x] 调整全站背景焦点，减少个人名片对背景人物的遮挡
+- [x] 运行可用检查并记录结果（`tsc --noEmit`、`git diff --check` 和敏感词扫描通过；`corepack pnpm build` 在沙箱内仍因 `spawn EPERM` 失败，但沙箱外重跑已通过并生成 17 个页面）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`
