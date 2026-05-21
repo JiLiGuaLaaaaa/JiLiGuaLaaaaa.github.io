@@ -94,6 +94,14 @@
 - [x] 更新 README 中的 Banner 展示说明
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 样式和旧 `.jpg` 引用扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
 
+## 本次 Banner5 替换和融合优化
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md`、Banner 样式和当前 Banner 资源
+- [x] 用根目录新的 `banner5.png` 替换关于页 Banner
+- [x] 调整 Banner 图片填充和前景/模糊背景融合过渡
+- [x] 更新 README 中的 Banner 展示说明
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；根目录 `banner5.png` 已清理，`public/images/banner/about.png` 已替换为新 `3904x1088` 图片；Banner 样式和旧 `.jpg` 引用扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`

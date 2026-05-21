@@ -183,7 +183,7 @@ button {
 .page-hero {
   position: relative;
   overflow: hidden;
-  min-height: clamp(320px, 42vw, 520px);
+  min-height: clamp(260px, 28vw, 460px);
   border-bottom: 1px solid var(--border);
   background:
     radial-gradient(circle at 18% 20%, rgba(255, 198, 222, 0.62), transparent 34%),
@@ -238,9 +238,9 @@ button {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: blur(18px) saturate(1.08);
-  opacity: 0.58;
-  transform: scale(1.06);
+  filter: blur(22px) saturate(1.14);
+  opacity: 0.68;
+  transform: scale(1.08);
 }
 
 .page-hero__media img:last-child {
@@ -248,11 +248,19 @@ button {
   inset: 0;
   width: 100%;
   height: 100%;
-  padding: clamp(4px, 0.8vw, 12px);
+  padding: clamp(0px, 0.4vw, 6px);
   margin-inline: auto;
   object-fit: contain;
   object-position: center;
   filter: drop-shadow(0 22px 36px rgba(128, 70, 105, 0.22));
+  mask-image:
+    linear-gradient(90deg, transparent 0, black 7%, black 93%, transparent 100%),
+    linear-gradient(180deg, transparent 0, black 8%, black 92%, transparent 100%);
+  mask-composite: intersect;
+  -webkit-mask-image:
+    linear-gradient(90deg, transparent 0, black 7%, black 93%, transparent 100%),
+    linear-gradient(180deg, transparent 0, black 8%, black 92%, transparent 100%);
+  -webkit-mask-composite: source-in;
   transform-origin: center top;
   transition:
     opacity 360ms ease,
@@ -273,7 +281,7 @@ button {
   z-index: 2;
   display: grid;
   gap: 10px;
-  min-height: clamp(320px, 42vw, 520px);
+  min-height: clamp(260px, 28vw, 460px);
   align-content: end;
   padding: 48px 0 34px;
   transition:
@@ -359,7 +367,7 @@ button {
 @media (max-width: 720px) {
   .page-hero,
   .page-hero__inner {
-    min-height: 320px;
+    min-height: clamp(210px, 36vw, 260px);
   }
 
   .page-hero.is-collapsed,
@@ -372,7 +380,13 @@ button {
   }
 
   .page-hero__media img:last-child {
-    padding: 6px;
+    padding: 0;
+    mask-image:
+      linear-gradient(90deg, transparent 0, black 5%, black 95%, transparent 100%),
+      linear-gradient(180deg, transparent 0, black 7%, black 93%, transparent 100%);
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0, black 5%, black 95%, transparent 100%),
+      linear-gradient(180deg, transparent 0, black 7%, black 93%, transparent 100%);
   }
 
   .page-hero::before {
