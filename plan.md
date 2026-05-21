@@ -47,6 +47,17 @@
 - [x] 更新 README 说明本次交互、首页和性能调整
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；敏感文件跟踪检查通过；`corepack pnpm build` 在当前沙箱仍因 Astro/Vite `spawn EPERM` 失败，沙箱外重跑申请被自动审批系统拒绝，未能在本轮完成构建验证）
 
+## 本次博客入口、渐变背景和主题 Banner 调整
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和相关页面/布局文件
+- [x] 将根路径 `/` 改为直接跳转博客页，移除单独主界面内容维护
+- [x] 将博客页面背景改为基础柔和渐变，不再使用全站背景图
+- [x] 整理 `banner/` 图片，按主题重命名并迁移到公开资源目录
+- [x] 为博客、标签、归档、搜索、关于页面接入对应主题 Banner 图片
+- [x] 实现滚动后 Banner 流畅收起，保证正文能完整展示
+- [x] 更新 README 说明当前入口、背景和 Banner 资源规则
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 资源和旧主界面引用检查通过；`corepack pnpm build` 在当前沙箱仍因 Astro/Vite `spawn EPERM` 失败，沙箱外重跑申请被自动审批系统拒绝，未能在本轮完成构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`

@@ -10,7 +10,10 @@ const tags = getAllTags(posts);
 ---
 
 <BaseLayout title="博客" description="辣子鸡丁砂锅的全部公开文章。">
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/blog.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Articles</p>
       <h1>博客</h1>
@@ -39,6 +42,10 @@ const tags = getAllTags(posts);
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import "@/scripts/collapsible-banner";
+</script>
 
 <style>
   .blog-main {

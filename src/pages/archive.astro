@@ -6,7 +6,10 @@ const groups = getArchiveGroups(await getPublishedPosts());
 ---
 
 <BaseLayout title="归档" description="按年份浏览公开文章。">
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/archive.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Timeline</p>
       <h1>归档</h1>
@@ -31,6 +34,10 @@ const groups = getArchiveGroups(await getPublishedPosts());
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import "@/scripts/collapsible-banner";
+</script>
 
 <style>
   .archive {

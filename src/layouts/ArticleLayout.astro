@@ -52,15 +52,17 @@ const allTags = getAllTags(allPosts);
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(180deg, rgba(255, 244, 248, 0.4), rgba(255, 244, 248, 0.92)),
-      url("/images/site-bg.jpg") center / cover;
+      radial-gradient(circle at 16% 24%, rgba(255, 198, 222, 0.72), transparent 34%),
+      radial-gradient(circle at 84% 16%, rgba(194, 237, 255, 0.52), transparent 32%),
+      linear-gradient(135deg, rgba(255, 244, 248, 0.98), rgba(255, 226, 239, 0.94) 52%, rgba(237, 249, 255, 0.9));
     content: "";
   }
 
   :global(:root[data-theme="dark"]) .article-banner::before {
     background:
-      linear-gradient(180deg, rgba(32, 24, 32, 0.38), rgba(32, 24, 32, 0.92)),
-      url("/images/site-bg.jpg") center / cover;
+      radial-gradient(circle at 16% 24%, rgba(126, 54, 88, 0.5), transparent 34%),
+      radial-gradient(circle at 84% 16%, rgba(50, 83, 103, 0.42), transparent 32%),
+      linear-gradient(135deg, rgba(32, 24, 32, 0.98), rgba(58, 35, 52, 0.95) 52%, rgba(28, 43, 58, 0.9));
   }
 
   .article-banner__inner {

@@ -3,7 +3,10 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 ---
 
 <BaseLayout title="搜索" description="搜索公开文章。">
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/search.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Search</p>
       <h1>搜索</h1>
@@ -22,6 +25,8 @@ import BaseLayout from "@/layouts/BaseLayout.astro";
 </BaseLayout>
 
 <script>
+  import "@/scripts/collapsible-banner";
+
   type SearchItem = {
     title: string;
     description: string;

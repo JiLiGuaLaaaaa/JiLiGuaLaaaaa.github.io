@@ -48,7 +48,7 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
   <body>
     <header class="site-header">
       <div class="container site-header__inner">
-        <a class="brand" href="/" aria-label={`${siteConfig.name} 首页`}>
+        <a class="brand" href="/blog/" aria-label={`${siteConfig.name} 博客`}>
           <img class="brand__mark" src={siteConfig.icon} alt="" width="36" height="36" />
           <span class="brand__text">{siteConfig.name}</span>
         </a>

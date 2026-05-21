@@ -6,7 +6,10 @@ const tags = getAllTags(await getPublishedPosts());
 ---
 
 <BaseLayout title="标签" description="按标签浏览公开文章。">
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/tags.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Tags</p>
       <h1>标签</h1>
@@ -21,6 +24,10 @@ const tags = getAllTags(await getPublishedPosts());
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import "@/scripts/collapsible-banner";
+</script>
 
 <style>
   .tag-list {

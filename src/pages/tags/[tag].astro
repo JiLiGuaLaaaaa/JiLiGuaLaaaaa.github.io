@@ -15,7 +15,10 @@ const { tag, posts } = Astro.props;
 ---
 
 <BaseLayout title={`标签：${tag}`} description={`标签 ${tag} 下的文章。`}>
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/tags.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">Tag</p>
       <h1>标签：{tag}</h1>
@@ -28,6 +31,10 @@ const { tag, posts } = Astro.props;
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import "@/scripts/collapsible-banner";
+</script>
 
 <style>
   .post-list {

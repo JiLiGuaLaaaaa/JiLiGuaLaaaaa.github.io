@@ -4,7 +4,10 @@ import { siteConfig } from "@/config/site";
 ---
 
 <BaseLayout title="关于" description={`关于 ${siteConfig.name}。`}>
-  <section class="page-hero">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/about.jpg" alt="" loading="eager" decoding="async" />
+    </div>
     <div class="container page-hero__inner">
       <p class="page-hero__eyebrow">About</p>
       <h1>关于</h1>
@@ -36,6 +39,10 @@ import { siteConfig } from "@/config/site";
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  import "@/scripts/collapsible-banner";
+</script>
 
 <style>
   .about {

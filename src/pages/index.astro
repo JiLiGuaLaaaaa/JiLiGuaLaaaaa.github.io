@@ -1,108 +1,23 @@
 ---
-import BaseLayout from "@/layouts/BaseLayout.astro";
-import PostCard from "@/components/PostCard.astro";
-import ProfileCard from "@/components/ProfileCard.astro";
 import { siteConfig } from "@/config/site";
-import { getAllTags, getPublishedPosts } from "@/lib/posts";
 
-const posts = await getPublishedPosts();
-const allTags = getAllTags(posts);
+const target = "/blog/";
+const canonical = new URL(target, siteConfig.url).toString();
 ---
 
-<BaseLayout title={siteConfig.name} description={siteConfig.description}>
-  <section class="page-block home-blog">
-    <div class="container layout-grid home-blog__grid">
-      <div class="home-blog__main">
-        <header class="home-blog__heading">
-          <div>
-            <p class="panel-eyebrow">Articles</p>
-            <h1>博客</h1>
-          </div>
-          <div class="home-blog__stats" aria-label="博客概览">
-            <span>{posts.length} 篇文章</span>
-            <span>{allTags.length} 个标签</span>
-          </div>
-        </header>
-        <div class="post-list" aria-label="文章列表">
-          {posts.map((post) => <PostCard post={post} />)}
-        </div>
-      </div>
-      <div class="layout-sidebar home-blog__side">
-        <ProfileCard postsCount={posts.length} tagsCount={allTags.length} hotTags={allTags} />
-      </div>
-    </div>
-  </section>
-</BaseLayout>
-
-<style>
-  .panel-eyebrow {
-    margin: 0 0 10px;
-    color: var(--accent-strong);
-    font-size: 0.78rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .home-blog {
-    padding-top: 38px;
-  }
-
-  .home-blog__main {
-    display: grid;
-    gap: 18px;
-  }
-
-  .home-blog__heading {
-    display: flex;
-    gap: 18px;
-    align-items: end;
-    justify-content: space-between;
-    padding: 4px 2px 0;
-  }
-
-  .home-blog__heading h1 {
-    margin: 0;
-    font-size: clamp(2rem, 1.32rem + 2vw, 3.4rem);
-    line-height: 1.1;
-  }
-
-  .home-blog__stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
-    color: var(--muted);
-    font-size: 0.92rem;
-  }
-
-  .post-list {
-    display: grid;
-    gap: 18px;
-  }
-
-  @media (max-width: 920px) {
-    .home-blog__side {
-      order: 2;
-    }
-
-    .home-blog__grid {
-      gap: 18px;
-    }
-  }
-
-  @media (max-width: 680px) {
-    .home-blog {
-      padding-top: 24px;
-    }
-
-    .home-blog__heading {
-      display: grid;
-      gap: 8px;
-    }
-
-    .home-blog__stats {
-      justify-content: flex-start;
-    }
-  }
-</style>
+<!doctype html>
+<html lang={siteConfig.language}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={canonical} />
+    <title>正在进入博客 | {siteConfig.name}</title>
+    <script is:inline>
+      window.location.replace("/blog/");
+    </script>
+  </head>
+  <body>
+    <a href="/blog/">进入博客</a>
+  </body>
+</html>
