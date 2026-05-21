@@ -110,6 +110,13 @@
 - [x] 更新 README 中的 Banner 和导航说明
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 融合样式、浅色清晰度参数和底部导航状态逻辑扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
 
+## 本次移动端 Banner 填充优化
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和当前 Banner 样式
+- [x] 只调整移动端 Banner 填充策略，保持电脑版效果不变
+- [x] 更新 README 中的移动端 Banner 说明
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；移动端 Banner 专用样式和旧 `.jpg` 引用扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`
