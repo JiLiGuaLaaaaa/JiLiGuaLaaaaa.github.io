@@ -63,7 +63,7 @@ body::before {
       rgba(255, 225, 238, 0.8) 44%,
       rgba(235, 247, 255, 0.74)
     ),
-    url("/images/site-bg.jpg") 10% 18% / cover fixed;
+    url("/images/site-bg.jpg") 30% 18% / cover fixed;
   content: "";
   pointer-events: none;
 }
