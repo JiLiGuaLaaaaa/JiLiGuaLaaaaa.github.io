@@ -3,7 +3,6 @@ import ThemeToggle from "@/components/ThemeToggle.astro";
 import CursorCharacter from "@/components/CursorCharacter.astro";
 import { siteConfig } from "@/config/site";
 import "@/styles/global.css";
-import "@/scripts/collapsible-banner";
 
 interface Props {
   title?: string;
@@ -88,6 +87,21 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
       </div>
     </footer>
     <CursorCharacter />
+    <script>
+      const updateCollapsibleBanners = () => {
+        const banners = Array.from(document.querySelectorAll("[data-collapsible-banner]"));
+        const shouldCollapse = window.scrollY > 36;
+
+        for (const banner of banners) {
+          banner.classList.toggle("is-collapsed", shouldCollapse);
+        }
+      };
+
+      updateCollapsibleBanners();
+      window.addEventListener("scroll", updateCollapsibleBanners, { passive: true });
+      window.addEventListener("resize", updateCollapsibleBanners, { passive: true });
+      window.addEventListener("pageshow", updateCollapsibleBanners);
+    </script>
     <slot name="body-end" />
   </body>
 </html>
