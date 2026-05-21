@@ -183,7 +183,7 @@ button {
 .page-hero {
   position: relative;
   overflow: hidden;
-  min-height: clamp(260px, 28vw, 460px);
+  min-height: clamp(270px, 27.9vw, 540px);
   border-bottom: 1px solid var(--border);
   background:
     radial-gradient(circle at 18% 20%, rgba(255, 198, 222, 0.62), transparent 34%),
@@ -197,8 +197,8 @@ button {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(255, 244, 248, 0.9), rgba(255, 244, 248, 0.46) 38%, rgba(255, 244, 248, 0.12)),
-    linear-gradient(180deg, rgba(255, 244, 248, 0.1), rgba(255, 244, 248, 0.24));
+    linear-gradient(90deg, rgba(255, 244, 248, 0.28), rgba(255, 244, 248, 0.1) 34%, rgba(255, 244, 248, 0.02)),
+    linear-gradient(180deg, transparent, rgba(255, 244, 248, 0.08));
   content: "";
   z-index: 1;
 }
@@ -238,9 +238,9 @@ button {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: blur(22px) saturate(1.14);
-  opacity: 0.68;
-  transform: scale(1.08);
+  filter: blur(34px) saturate(1.22) brightness(1.06);
+  opacity: 0.92;
+  transform: scale(1.16);
 }
 
 .page-hero__media img:last-child {
@@ -252,14 +252,14 @@ button {
   margin-inline: auto;
   object-fit: contain;
   object-position: center;
-  filter: drop-shadow(0 22px 36px rgba(128, 70, 105, 0.22));
+  filter: contrast(1.07) saturate(1.12) drop-shadow(0 14px 26px rgba(128, 70, 105, 0.14));
   mask-image:
-    linear-gradient(90deg, transparent 0, black 7%, black 93%, transparent 100%),
-    linear-gradient(180deg, transparent 0, black 8%, black 92%, transparent 100%);
+    linear-gradient(90deg, transparent 0, rgba(0, 0, 0, 0.78) 3%, black 8%, black 92%, rgba(0, 0, 0, 0.78) 97%, transparent 100%),
+    linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.82) 4%, black 10%, black 90%, rgba(0, 0, 0, 0.82) 96%, transparent 100%);
   mask-composite: intersect;
   -webkit-mask-image:
-    linear-gradient(90deg, transparent 0, black 7%, black 93%, transparent 100%),
-    linear-gradient(180deg, transparent 0, black 8%, black 92%, transparent 100%);
+    linear-gradient(90deg, transparent 0, rgba(0, 0, 0, 0.78) 3%, black 8%, black 92%, rgba(0, 0, 0, 0.78) 97%, transparent 100%),
+    linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.82) 4%, black 10%, black 90%, rgba(0, 0, 0, 0.82) 96%, transparent 100%);
   -webkit-mask-composite: source-in;
   transform-origin: center top;
   transition:
@@ -281,7 +281,7 @@ button {
   z-index: 2;
   display: grid;
   gap: 10px;
-  min-height: clamp(260px, 28vw, 460px);
+  min-height: clamp(270px, 27.9vw, 540px);
   align-content: end;
   padding: 48px 0 34px;
   transition:
@@ -382,15 +382,15 @@ button {
   .page-hero__media img:last-child {
     padding: 0;
     mask-image:
-      linear-gradient(90deg, transparent 0, black 5%, black 95%, transparent 100%),
-      linear-gradient(180deg, transparent 0, black 7%, black 93%, transparent 100%);
+      linear-gradient(90deg, transparent 0, rgba(0, 0, 0, 0.8) 2%, black 6%, black 94%, rgba(0, 0, 0, 0.8) 98%, transparent 100%),
+      linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.84) 3%, black 8%, black 92%, rgba(0, 0, 0, 0.84) 97%, transparent 100%);
     -webkit-mask-image:
-      linear-gradient(90deg, transparent 0, black 5%, black 95%, transparent 100%),
-      linear-gradient(180deg, transparent 0, black 7%, black 93%, transparent 100%);
+      linear-gradient(90deg, transparent 0, rgba(0, 0, 0, 0.8) 2%, black 6%, black 94%, rgba(0, 0, 0, 0.8) 98%, transparent 100%),
+      linear-gradient(180deg, transparent 0, rgba(0, 0, 0, 0.84) 3%, black 8%, black 92%, rgba(0, 0, 0, 0.84) 97%, transparent 100%);
   }
 
   .page-hero::before {
-    background: linear-gradient(180deg, rgba(255, 244, 248, 0.72), rgba(255, 244, 248, 0.36));
+    background: linear-gradient(180deg, rgba(255, 244, 248, 0.36), rgba(255, 244, 248, 0.18));
   }
 
   :root[data-theme="dark"] .page-hero::before {

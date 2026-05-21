@@ -102,6 +102,14 @@
 - [x] 更新 README 中的 Banner 展示说明
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；根目录 `banner5.png` 已清理，`public/images/banner/about.png` 已替换为新 `3904x1088` 图片；Banner 样式和旧 `.jpg` 引用扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
 
+## 本次 Banner 边界和底部导航修复
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md`、Banner 样式和顶部导航脚本
+- [x] 优化 Banner 前景/背景边界，减少浅色模式发灰和硬边
+- [x] 修复滚动到底部时顶部导航栏误弹出的问题
+- [x] 更新 README 中的 Banner 和导航说明
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 融合样式、浅色清晰度参数和底部导航状态逻辑扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`

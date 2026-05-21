@@ -90,10 +90,12 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
     <script>
       const siteHeader = document.querySelector(".site-header");
       let lastScrollY = window.scrollY;
+      let headerHidden = false;
 
       const updateScrollLayout = () => {
         const banners = Array.from(document.querySelectorAll("[data-collapsible-banner]"));
         const currentScrollY = window.scrollY;
+        const maxScrollY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
         const shouldCollapse = currentScrollY > 36;
 
         for (const banner of banners) {
@@ -105,10 +107,20 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
           const focusedInHeader =
             document.activeElement instanceof HTMLElement &&
             siteHeader.contains(document.activeElement);
-          const shouldHideHeader =
-            currentScrollY > 96 && scrollDelta > 4 && !focusedInHeader;
+          const isNearTop = currentScrollY <= 24;
+          const isNearBottom = maxScrollY > 0 && currentScrollY >= maxScrollY - 3;
 
-          siteHeader.classList.toggle("is-hidden", shouldHideHeader);
+          if (isNearTop || focusedInHeader) {
+            headerHidden = false;
+          } else if (isNearBottom) {
+            headerHidden = currentScrollY > 96;
+          } else if (currentScrollY > 96 && scrollDelta > 8) {
+            headerHidden = true;
+          } else if (scrollDelta < -12) {
+            headerHidden = false;
+          }
+
+          siteHeader.classList.toggle("is-hidden", headerHidden);
         }
 
         lastScrollY = currentScrollY;
