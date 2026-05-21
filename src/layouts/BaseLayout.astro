@@ -232,19 +232,54 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
 
   @media (max-width: 760px) {
     .site-header__inner {
-      grid-template-columns: 1fr auto;
-      padding: 12px 0;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 7px 10px;
+      min-height: 0;
+      padding: 8px 0 9px;
     }
 
-    .nav {
-      grid-column: 1 / -1;
-      justify-content: flex-start;
-      overflow-x: auto;
-      padding-bottom: 4px;
+    .brand {
+      min-width: 0;
+    }
+
+    .brand__mark {
+      width: 32px;
+      height: 32px;
     }
 
     .brand__text {
-      white-space: normal;
+      overflow: hidden;
+      font-size: 0.98rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .nav {
+      grid-column: 1 / 2;
+      grid-row: 2;
+      flex-wrap: nowrap;
+      gap: 2px;
+      justify-content: flex-start;
+      overflow-x: auto;
+      padding: 0;
+      scrollbar-width: none;
+    }
+
+    .nav::-webkit-scrollbar {
+      display: none;
+    }
+
+    .nav a {
+      padding: 4px 8px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    :global(.theme-toggle) {
+      grid-column: 2;
+      grid-row: 2;
+      align-self: center;
+      justify-self: end;
     }
   }
 </style>

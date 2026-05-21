@@ -11,9 +11,8 @@ const slug = getPostSlug(post);
 ---
 
 <article class="post-card card">
-  <a class="post-card__title" href={`/blog/${slug}/`}>
-    <h2>{post.data.title}</h2>
-  </a>
+  <a class="post-card__overlay" href={`/blog/${slug}/`} aria-label={`阅读文章：${post.data.title}`}></a>
+  <h2 class="post-card__title">{post.data.title}</h2>
   <p class="post-card__description">{post.data.description}</p>
   <footer class="post-card__meta">
     <time datetime={post.data.pubDate.toISOString()}>{formatDate(post.data.pubDate)}</time>
@@ -43,6 +42,19 @@ const slug = getPostSlug(post);
     opacity: 0.76;
   }
 
+  .post-card__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    text-decoration: none;
+  }
+
+  .post-card__overlay:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--accent), white 18%);
+    outline-offset: 3px;
+  }
+
   .post-card:hover {
     border-color: color-mix(in srgb, var(--accent), var(--border) 40%);
     box-shadow: 0 22px 54px rgba(128, 70, 105, 0.18);
@@ -50,17 +62,21 @@ const slug = getPostSlug(post);
   }
 
   .post-card__title {
-    color: var(--text);
-    text-decoration: none;
-  }
-
-  .post-card__title h2 {
+    position: relative;
+    z-index: 0;
     margin: 0;
+    color: var(--text);
     font-size: 1.28rem;
     line-height: 1.35;
   }
 
+  .post-card:hover .post-card__title {
+    color: var(--accent-strong);
+  }
+
   .post-card__description {
+    position: relative;
+    z-index: 0;
     margin: 12px 0 18px;
     color: var(--muted);
     font-size: 0.96rem;
@@ -76,9 +92,21 @@ const slug = getPostSlug(post);
     font-size: 0.95rem;
   }
 
+  .post-card__meta time {
+    position: relative;
+    z-index: 0;
+  }
+
   .post-card__tags {
+    position: relative;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+  }
+
+  .post-card__tags a {
+    position: relative;
+    z-index: 2;
   }
 </style>

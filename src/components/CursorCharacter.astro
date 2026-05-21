@@ -392,7 +392,20 @@
 
   applyStoredPosition();
   setHidden(localStorage.getItem(hiddenKey) === "1");
-  void warmFrames(framePreloads).then(() => character?.classList.add("are-frames-ready"));
+  const scheduleDeferredWarmup = (callback: () => void) => {
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(callback, { timeout: 3600 });
+      return;
+    }
+    window.setTimeout(callback, 1600);
+  };
+
+  void warmFrames(Object.values(lookFrames)).then(() => {
+    character?.classList.add("are-frames-ready");
+    scheduleDeferredWarmup(() => {
+      void warmFrames(framePreloads);
+    });
+  });
   window.setInterval(playBlink, 5200);
   window.setInterval(() => {
     if (!document.hidden && !character?.classList.contains("is-hidden")) {

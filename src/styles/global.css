@@ -63,7 +63,7 @@ body::before {
       rgba(255, 225, 238, 0.8) 44%,
       rgba(235, 247, 255, 0.74)
     ),
-    url("/images/site-bg.jpg") 30% 18% / cover fixed;
+    url("/images/site-bg.jpg") 150% 18% / 150% auto no-repeat;
   content: "";
   pointer-events: none;
 }
@@ -76,7 +76,7 @@ body::before {
       rgba(58, 35, 52, 0.88) 46%,
       rgba(28, 43, 58, 0.82)
     ),
-    url("/images/site-bg.jpg") 30% 18% / cover fixed;
+    url("/images/site-bg.jpg") 150% 18% / 150% auto no-repeat;
 }
 
 a {
@@ -268,7 +268,10 @@ button {
   :root[data-theme="dark"] body::before {
     background-position:
       center,
-      28% 14%;
+      76% 14%;
+    background-size:
+      auto,
+      170% auto;
   }
 
   .page-block {
