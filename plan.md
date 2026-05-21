@@ -87,6 +87,13 @@
 - [x] 更新 README 中的交互说明
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；源码和文档资源引用扫描未发现旧 `.jpg` Banner、根目录 `banner1-5.png` 或旧服务端 Banner 脚本引用；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
 
+## 本次 Banner 前景铺满优化
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和 Banner 样式文件
+- [x] 调整 Banner 前景图片，让其在人物完整可见前提下尽可能占满 Banner
+- [x] 更新 README 中的 Banner 展示说明
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 样式和旧 `.jpg` 引用扫描通过；`corepack pnpm build` 在当前本地沙箱仍因 Astro/Vite `spawn EPERM` 失败，未能在本地沙箱完成完整构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`
