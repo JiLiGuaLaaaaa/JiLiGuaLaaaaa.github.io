@@ -58,6 +58,14 @@
 - [x] 更新 README 说明当前入口、背景和 Banner 资源规则
 - [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 资源和旧主界面引用检查通过；`corepack pnpm build` 在当前沙箱仍因 Astro/Vite `spawn EPERM` 失败，沙箱外重跑申请被自动审批系统拒绝，未能在本轮完成构建验证）
 
+## 本次 Banner 填充和收起修复
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和相关 Banner 页面/样式/脚本文件
+- [x] 修复部分分类或标签页面 Banner 无法收起的问题
+- [x] 调整 Banner 展示方式，让背景填满容器，同时保留人物完整可见
+- [x] 更新 README 说明 Banner 展示和脚本机制
+- [x] 运行可用检查并记录结果（`tsc --noEmit` 和 `git diff --check` 通过；Banner 双层图片和全站脚本导入检查通过；`corepack pnpm build` 在当前沙箱仍因 Astro/Vite `spawn EPERM` 失败，沙箱外重跑申请被自动审批系统拒绝，未能在本轮完成构建验证）
+
 ## 当前维护提示
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`
