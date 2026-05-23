@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
@@ -19,15 +19,20 @@ const allowedOrigins = new Set(
     .filter(Boolean)
 );
 
-const maxBodyBytes = 64 * 1024;
+const maxBodyBytes = 24 * 1024 * 1024;
+const maxDynamicImages = 4;
+const maxDynamicImageBytes = 3 * 1024 * 1024;
 const diarySessionTtlMs = 30 * 60 * 1000;
+const dynamicSessionTtlMs = 30 * 60 * 1000;
 const diarySessions = new Map();
+const dynamicSessions = new Map();
 
 const files = {
   stats: join(dataDir, "stats.json"),
   dynamics: join(dataDir, "dynamic-records.json"),
   life: join(dataDir, "life-records.json"),
-  diary: join(dataDir, "diary-entries.json")
+  diary: join(dataDir, "diary-entries.json"),
+  uploads: join(dataDir, "uploads")
 };
 
 const jsonHeaders = {
@@ -39,6 +44,19 @@ const htmlHeaders = {
   "Content-Type": "text/html; charset=utf-8",
   "Cache-Control": "no-store"
 };
+
+const uploadContentTypes = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp"
+};
+
+const dynamicImageTypes = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"]
+]);
 
 const defaultStats = () => ({
   total: 0,
@@ -56,7 +74,7 @@ const nowIso = () => new Date().toISOString();
 
 const send = (response, status, body, headers = jsonHeaders) => {
   response.writeHead(status, headers);
-  response.end(typeof body === "string" ? body : JSON.stringify(body));
+  response.end(Buffer.isBuffer(body) ? body : typeof body === "string" ? body : JSON.stringify(body));
 };
 
 const sendJson = (response, status, body) => send(response, status, body);
@@ -64,6 +82,8 @@ const sendJson = (response, status, body) => send(response, status, body);
 const sendError = (response, status, message) => {
   sendJson(response, status, { ok: false, error: message });
 };
+
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 const getOrigin = (request) => request.headers.origin || "";
 
@@ -117,6 +137,21 @@ const createDiarySession = () => {
   return { token, expiresAt };
 };
 
+const cleanupDynamicSessions = () => {
+  const now = Date.now();
+  for (const [token, expiresAt] of dynamicSessions.entries()) {
+    if (expiresAt <= now) dynamicSessions.delete(token);
+  }
+};
+
+const createDynamicSession = () => {
+  cleanupDynamicSessions();
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = Date.now() + dynamicSessionTtlMs;
+  dynamicSessions.set(token, expiresAt);
+  return { token, expiresAt };
+};
+
 const isDiarySessionAuthorized = (request) => {
   cleanupDiarySessions();
   const header = request.headers.authorization || "";
@@ -126,6 +161,20 @@ const isDiarySessionAuthorized = (request) => {
   const expiresAt = diarySessions.get(token);
   if (!expiresAt || expiresAt <= Date.now()) {
     diarySessions.delete(token);
+    return false;
+  }
+  return true;
+};
+
+const isDynamicSessionAuthorized = (request) => {
+  cleanupDynamicSessions();
+  const header = request.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return false;
+  const token = match[1];
+  const expiresAt = dynamicSessions.get(token);
+  if (!expiresAt || expiresAt <= Date.now()) {
+    dynamicSessions.delete(token);
     return false;
   }
   return true;
@@ -216,11 +265,23 @@ const normalizePath = (value) => {
 
 const makeId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 
+const publicImageRecord = (image) => {
+  if (!image || typeof image !== "object" || !image.src) return null;
+  return {
+    src: image.src,
+    alt: image.alt || "",
+    type: image.type || "",
+    width: Number(image.width || 0),
+    height: Number(image.height || 0)
+  };
+};
+
 const publicLifeRecord = (record) => ({
   id: record.id,
   title: record.title,
   content: record.content,
   mood: record.mood,
+  images: Array.isArray(record.images) ? record.images.map(publicImageRecord).filter(Boolean) : [],
   createdAt: record.createdAt,
   updatedAt: record.updatedAt
 });
@@ -230,9 +291,112 @@ const publicDynamicRecord = (record) => ({
   title: record.title || "",
   content: record.content,
   mood: record.mood,
+  images: Array.isArray(record.images) ? record.images.map(publicImageRecord).filter(Boolean) : [],
   createdAt: record.createdAt,
   updatedAt: record.updatedAt
 });
+
+const parseDynamicImage = (image) => {
+  if (!image || typeof image !== "object") {
+    throw httpError(400, "Invalid image payload.");
+  }
+
+  const dataUrl = String(image.dataUrl || "");
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) {
+    throw httpError(400, "Only JPEG, PNG and WebP images are supported.");
+  }
+
+  const type = match[1];
+  const extension = dynamicImageTypes.get(type);
+  const buffer = Buffer.from(match[2], "base64");
+  if (!extension || buffer.length === 0) {
+    throw httpError(400, "Invalid image payload.");
+  }
+  if (buffer.length > maxDynamicImageBytes) {
+    throw httpError(413, "Each image must be smaller than 3 MB after compression.");
+  }
+
+  return {
+    buffer,
+    type,
+    extension,
+    alt: cleanText(image.alt || image.name || "", 80),
+    width: Number(image.width || 0),
+    height: Number(image.height || 0)
+  };
+};
+
+const saveDynamicImages = async (rawImages, recordId) => {
+  if (!Array.isArray(rawImages) || rawImages.length === 0) return [];
+  if (rawImages.length > maxDynamicImages) {
+    throw httpError(400, `At most ${maxDynamicImages} images can be attached.`);
+  }
+
+  const bucketDate = new Date();
+  const bucket = `${bucketDate.getFullYear()}${String(bucketDate.getMonth() + 1).padStart(2, "0")}`;
+  const uploadDir = join(files.uploads, "dynamics", bucket);
+  await mkdir(uploadDir, { recursive: true });
+
+  const savedImages = [];
+  for (const [index, rawImage] of rawImages.entries()) {
+    const image = parseDynamicImage(rawImage);
+    const fileName = `${recordId}-${index}-${randomBytes(4).toString("hex")}.${image.extension}`;
+    await writeFile(join(uploadDir, fileName), image.buffer);
+    savedImages.push({
+      src: `/uploads/dynamics/${bucket}/${fileName}`,
+      alt: image.alt,
+      type: image.type,
+      size: image.buffer.length,
+      width: image.width,
+      height: image.height
+    });
+  }
+  return savedImages;
+};
+
+const handleUploadRead = async (response, url) => {
+  let decodedPath = "";
+  try {
+    decodedPath = decodeURIComponent(url.pathname);
+  } catch {
+    sendError(response, 404, "Not found.");
+    return;
+  }
+
+  if (!decodedPath.startsWith("/uploads/") || decodedPath.includes("\0")) {
+    sendError(response, 404, "Not found.");
+    return;
+  }
+
+  const uploadsRoot = resolve(files.uploads);
+  const relativePath = decodedPath.replace(/^\/uploads\/+/, "");
+  const filePath = resolve(uploadsRoot, relativePath);
+  if (filePath === uploadsRoot || !filePath.startsWith(`${uploadsRoot}${sep}`)) {
+    sendError(response, 403, "Forbidden.");
+    return;
+  }
+
+  const contentType = uploadContentTypes[extname(filePath).toLowerCase()];
+  if (!contentType) {
+    sendError(response, 404, "Not found.");
+    return;
+  }
+
+  try {
+    const body = await readFile(filePath);
+    send(response, 200, body, {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=31536000, immutable"
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      sendError(response, 404, "Not found.");
+      return;
+    }
+    throw error;
+  }
+};
 
 const handleStatsRead = async (response, url) => {
   const stats = await readJsonFile(files.stats, defaultStats);
@@ -290,26 +454,32 @@ const handleDynamicRead = async (response, url) => {
 
 const handleDynamicWrite = async (request, response) => {
   const body = await readBody(request);
-  if (!isAuthorized(request)) {
+  const adminAuthorized = isAuthorized(request);
+  const sessionAuthorized = isDynamicSessionAuthorized(request);
+  if (!adminAuthorized && !sessionAuthorized) {
     if (!requirePassword(response, dynamicPostPassword, body.password, "Dynamic publish")) return;
   }
 
+  const id = makeId();
   const title = cleanText(body.title, 80);
   const content = cleanMultiline(body.content, 1000);
   const mood = cleanText(body.mood, 24);
+  const status = adminAuthorized && body.status === "draft" ? "draft" : "published";
+  const images = await saveDynamicImages(body.images, id);
 
-  if (!content) {
-    sendError(response, 400, "Content is required.");
+  if (!content && images.length === 0) {
+    sendError(response, 400, "Content or image is required.");
     return;
   }
 
   const records = await readJsonFile(files.dynamics, () => []);
   const record = {
-    id: makeId(),
+    id,
     title,
     content,
     mood,
-    status: "published",
+    images,
+    status,
     createdAt: nowIso(),
     updatedAt: nowIso()
   };
@@ -333,18 +503,35 @@ const handleLifeWrite = async (request, response) => {
   await handleDynamicWrite(request, response);
 };
 
-const handleDiaryRead = async (request, response) => {
-  if (!requireDiaryAuth(request, response)) return;
-  const entries = await readJsonFile(files.diary, () => []);
+const handleDynamicSessionCreate = async (request, response) => {
+  const body = await readBody(request);
+  if (!requirePassword(response, dynamicPostPassword, body.password, "Dynamic publish")) return;
+  const session = createDynamicSession();
   sendJson(response, 200, {
     ok: true,
-    entries: entries.map((entry) => ({
-      id: entry.id,
-      title: entry.title,
-      content: entry.content,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt
-    }))
+    token: session.token,
+    expiresAt: new Date(session.expiresAt).toISOString()
+  });
+};
+
+const handleDiaryRead = async (request, response, url) => {
+  if (!requireDiaryAuth(request, response)) return;
+  const query = cleanText(url.searchParams.get("q"), 120).toLowerCase();
+  const entries = await readJsonFile(files.diary, () => []);
+  const filteredEntries = query
+    ? entries.filter((entry) => `${entry.title || ""}\n${entry.content || ""}`.toLowerCase().includes(query))
+    : entries;
+  sendJson(response, 200, {
+    ok: true,
+    entries: filteredEntries
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        content: entry.content,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt
+      }))
   });
 };
 
@@ -509,6 +696,10 @@ const handleRequest = async (request, response) => {
       await handleDynamicRead(response, url);
       return;
     }
+    if (request.method === "POST" && url.pathname === "/api/dynamics/session") {
+      await handleDynamicSessionCreate(request, response);
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/dynamics") {
       await handleDynamicWrite(request, response);
       return;
@@ -518,7 +709,7 @@ const handleRequest = async (request, response) => {
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/diary") {
-      await handleDiaryRead(request, response);
+      await handleDiaryRead(request, response, url);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/diary/session") {
@@ -529,9 +720,13 @@ const handleRequest = async (request, response) => {
       await handleDiaryWrite(request, response);
       return;
     }
+    if (request.method === "GET" && url.pathname.startsWith("/uploads/")) {
+      await handleUploadRead(response, url);
+      return;
+    }
     sendError(response, 404, "Not found.");
   } catch (error) {
-    sendError(response, error.message === "Request body is too large." ? 413 : 500, error.message || "Server error.");
+    sendError(response, error.status || (error.message === "Request body is too large." ? 413 : 500), error.message || "Server error.");
   }
 };
 

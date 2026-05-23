@@ -59,14 +59,14 @@ draft: false
 - 标签：按主题分类文章。
 - 归档：按年份整理文章。
 - 搜索：使用纯前端静态搜索数据，不连接后端。
-- 动态：`/dynamic/` 页面会从独立动态服务服务器读取已发布的公开动态；如果未配置动态服务或 API 不可用，会显示降级提示，不影响静态博客浏览。
+- 动态：`/dynamic/` 页面会从独立动态服务服务器读取已发布的公开动态；右上角的小笔图标是发布入口，点击后先输入发布密码，密码正确后才打开编辑器。编辑器支持文本和最多 4 张图片，图片可点击选择或拖拽进编辑区；短动态完整展示，长内容会显示“查看更多 / 收起”。如果未配置动态服务或 API 不可用，会显示降级提示，不影响静态博客浏览。
 - 访问量：页脚会在配置 `PUBLIC_DYNAMIC_API_BASE` 后显示全站访问量和当前页面访问量；统计只保存聚合计数。
 - RSS：`/rss.xml`，用于订阅文章更新。
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - RSS、Sitemap 和 SEO 入口在页面底部使用两组拼接复古徽章展示：`SEO + Sitemap` 指向 sitemap，`订阅 + RSS` 指向 RSS。
 - 评论：当前不显示评论区，也不显示评论占位；以后如果需要评论，应作为独立动态服务处理。
-- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏。连续短时间点击小人多次会打开写日记入口，入口会先走密码确认，再进入日记编辑；真正写入日记必须经过动态服务认证，入口本身不是安全边界。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
+- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏。8 秒内连续点击小人 20 次会打开写日记入口，入口会先走密码确认，再进入日记本列表；日记本顶部可搜索标题或内容，再通过“新建”进入日记编辑。点击弹窗外部不会关闭日记弹窗，真正写入日记必须经过动态服务认证，入口本身不是安全边界。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
 
 公开资料：
 
@@ -102,10 +102,10 @@ Docker 脚本默认使用 `/opt/blog-project`、`/var/lib/blog-dynamic` 和 `/et
 
 - `GET /health`：健康检查。
 - `POST /api/stats/pageview` 和 `GET /api/stats`：访问量聚合统计。
-- `GET /api/dynamics`：读取已发布的公开动态。
-- `POST /api/dynamics`：创建公开动态，必须通过发布密码确认。
+- `GET /api/dynamics`：读取已发布的公开动态，动态图片通过 `/uploads/...` 公开读取。
+- `POST /api/dynamics`：创建公开动态，必须通过发布密码确认，支持最多 4 张 JPG/PNG/WebP 图片。
 - `POST /api/diary/session`：验证日记密码并创建短期会话。
-- `POST /api/diary` 和 `GET /api/diary`：写入和读取私密日记，必须通过会话或管理 Token 认证。
+- `POST /api/diary` 和 `GET /api/diary`：写入和读取私密日记，必须通过会话或管理 Token 认证；`GET /api/diary?q=关键词` 可搜索标题或内容。
 - `GET /api/life` 和 `POST /api/life`：保留兼容别名，以动态接口为主。
 - `GET /admin/`：简单管理页面，用于写日记和动态。
 
@@ -122,6 +122,7 @@ BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
+BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 ```
 
 静态博客构建时可配置：
@@ -147,7 +148,7 @@ activity.20050619.xyz   -> 私人服务器公网 IP 上的动态服务
 PUBLIC_DYNAMIC_API_BASE -> https://activity.20050619.xyz
 ```
 
-服务器侧由 `/etc/blog-dynamic.env` 控制运行参数，Cloudflare 负责把 `activity` 子域名解析到服务器公网 IP。以后迁移服务器时，只需要迁移 `/etc/blog-dynamic.env` 和 `/var/lib/blog-dynamic`，再把 `activity` 的 DNS 指到新公网 IP；如果动态服务公开域名不变，GitHub Actions Variable 不需要改。
+服务器侧由 `/etc/blog-dynamic.env` 控制运行参数，Cloudflare 负责把 `activity` 子域名解析到服务器公网 IP。动态图片会存放在 `/var/lib/blog-dynamic/uploads/`。以后迁移服务器时，只需要迁移 `/etc/blog-dynamic.env` 和整个 `/var/lib/blog-dynamic`，再把 `activity` 的 DNS 指到新公网 IP；如果动态服务公开域名不变，GitHub Actions Variable 不需要改。
 
 如果暂时不配置这些变量，博客仍能作为纯静态站点正常访问，只是不显示访问量，动态页面不会读取服务器数据；连续点击小人 20 次仍会打开日记密码框，但会提示动态服务地址还没有配置。
 

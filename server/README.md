@@ -28,6 +28,7 @@ BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
+BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 ```
 
 不要把真实 `.env`、数据库文件、日记内容或访问日志提交进仓库。
@@ -54,7 +55,9 @@ BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 - `GET /api/stats?path=/blog/`
 - `POST /api/stats/pageview`
 - `GET /api/dynamics?limit=6`
+- `GET /uploads/...`
 - `GET /api/life?limit=6`
+- `POST /api/dynamics/session`
 - `POST /api/dynamics`
 - `POST /api/life`
 - `POST /api/diary/session`
@@ -76,5 +79,6 @@ Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
 - `dynamic-records.json`
 - `life-records.json`
 - `diary-entries.json`
+- `uploads/`
 
 生产环境建议放在 `/var/lib/blog-dynamic` 这类仓库外路径，并配置备份。

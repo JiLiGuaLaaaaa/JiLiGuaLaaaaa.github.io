@@ -37,6 +37,8 @@ CONFIGURE_NGINX="${BLOG_DYNAMIC_CONFIGURE_NGINX:-1}"
 GENERATE_PASSWORDS="${BLOG_DYNAMIC_GENERATE_PASSWORDS:-0}"
 INSTALL_DOCKER="${BLOG_DYNAMIC_INSTALL_DOCKER:-1}"
 NODE_IMAGE="${BLOG_DYNAMIC_NODE_IMAGE:-node:22-bookworm-slim}"
+BUILD_NODE_IMAGE="$NODE_IMAGE"
+NGINX_CLIENT_MAX_BODY_SIZE="${BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE:-24m}"
 
 strip_url_host() {
   local value="$1"
@@ -241,6 +243,22 @@ ensure_prerequisites() {
   ensure_docker
 }
 
+resolve_build_base_image() {
+  if docker image inspect "$NODE_IMAGE" >/dev/null 2>&1; then
+    BUILD_NODE_IMAGE="$NODE_IMAGE"
+    return
+  fi
+
+  if [ "$NODE_IMAGE" = "node:22-bookworm-slim" ] && docker image inspect blog-dynamic:local >/dev/null 2>&1; then
+    docker image tag blog-dynamic:local blog-dynamic:base >/dev/null 2>&1 || true
+    BUILD_NODE_IMAGE="blog-dynamic:base"
+    log "Using local blog-dynamic:local image as build base because ${NODE_IMAGE} is not cached locally."
+    return
+  fi
+
+  BUILD_NODE_IMAGE="$NODE_IMAGE"
+}
+
 ensure_dirs() {
   install -d -m 0755 "$REPO_DIR"
   install -d -m 0755 "$REPO_DIR/server"
@@ -251,9 +269,19 @@ install_source() {
   [ -f "$SOURCE_ROOT/server/index.mjs" ] || fail "Cannot find server/index.mjs beside this script."
   [ -f "$SOURCE_ROOT/server/Dockerfile" ] || fail "Cannot find server/Dockerfile beside this script."
   [ -f "$SOURCE_ROOT/server/docker-compose.yml" ] || fail "Cannot find server/docker-compose.yml beside this script."
-  install -m 0644 "$SOURCE_ROOT/server/index.mjs" "$REPO_DIR/server/index.mjs"
-  install -m 0644 "$SOURCE_ROOT/server/Dockerfile" "$REPO_DIR/server/Dockerfile"
-  install -m 0644 "$SOURCE_ROOT/server/docker-compose.yml" "$REPO_DIR/server/docker-compose.yml"
+
+  copy_if_needed() {
+    local source="$1"
+    local target="$2"
+    if [ -f "$target" ] && [ "$source" -ef "$target" ]; then
+      return 0
+    fi
+    install -m 0644 "$source" "$target"
+  }
+
+  copy_if_needed "$SOURCE_ROOT/server/index.mjs" "$REPO_DIR/server/index.mjs"
+  copy_if_needed "$SOURCE_ROOT/server/Dockerfile" "$REPO_DIR/server/Dockerfile"
+  copy_if_needed "$SOURCE_ROOT/server/docker-compose.yml" "$REPO_DIR/server/docker-compose.yml"
 }
 
 write_environment_file() {
@@ -262,6 +290,7 @@ write_environment_file() {
   ALLOWED_ORIGINS="$(env_or_existing_or_default BLOG_DYNAMIC_ALLOWED_ORIGINS "$ALLOWED_ORIGINS")"
   DATA_DIR="$(env_or_existing_or_default BLOG_DYNAMIC_DATA_DIR "$DATA_DIR")"
   PUBLIC_BASE_URL="$(env_or_existing_or_default BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL")"
+  NGINX_CLIENT_MAX_BODY_SIZE="$(env_or_existing_or_default BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE")"
 
   local admin_token post_password diary_password temp_file
   admin_token="$(secret_or_existing_or_generate BLOG_DYNAMIC_ADMIN_TOKEN)"
@@ -279,6 +308,7 @@ write_environment_file() {
     write_env_line BLOG_DYNAMIC_DATA_DIR "$DATA_DIR"
     write_env_line BLOG_DYNAMIC_NODE_IMAGE "$NODE_IMAGE"
     write_env_line BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL"
+    write_env_line BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE"
   } >"$temp_file"
 
   install -m 0600 -o root -g root "$temp_file" "$ENV_FILE"
@@ -294,10 +324,39 @@ compose_cmd() {
   docker-compose "$@"
 }
 
+remove_stale_containers() {
+  local ids=""
+  compose_cmd down --remove-orphans >/dev/null 2>&1 || true
+
+  ids="$(
+    {
+      docker ps -a --filter "name=${SERVICE_NAME}" --format "{{.ID}}" || true
+      docker ps -a --filter "label=com.docker.compose.service=${SERVICE_NAME}" --format "{{.ID}}" || true
+    } | sort -u
+  )"
+
+  if [ -n "$ids" ]; then
+    log "Removing stale containers matching ${SERVICE_NAME}."
+    while IFS= read -r container_id; do
+      [ -n "$container_id" ] || continue
+      docker rm -f "$container_id" >/dev/null 2>&1 || true
+    done <<EOF
+$ids
+EOF
+  fi
+}
+
 start_container() {
   systemctl enable --now docker >/dev/null 2>&1 || true
   cd "$REPO_DIR/server"
-  export BLOG_DYNAMIC_NODE_IMAGE="$NODE_IMAGE"
+  resolve_build_base_image
+  export BLOG_DYNAMIC_NODE_IMAGE="$BUILD_NODE_IMAGE"
+  if compose_cmd up -d --build; then
+    return
+  fi
+
+  log "Compose recreate failed; removing stale container and retrying."
+  remove_stale_containers
   compose_cmd up -d --build
 }
 
@@ -322,7 +381,7 @@ server {
     listen 80;
     server_name ${server_name};
 
-    client_max_body_size 1m;
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
     location / {
         proxy_pass http://127.0.0.1:${BIND_PORT};

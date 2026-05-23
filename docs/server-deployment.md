@@ -32,7 +32,7 @@ sudo bash server/bootstrap-docker.sh
 - 创建数据目录 `/var/lib/blog-dynamic`。
 - 创建环境文件 `/etc/blog-dynamic.env`。
 - 构建并启动 `blog-dynamic` 容器。
-- 创建 nginx 80 端口反向代理配置。
+- 创建 nginx 80 端口反向代理配置，默认 `client_max_body_size` 为 `24m`，用于支持动态图片上传。
 
 容器默认只映射到宿主机：
 
@@ -56,6 +56,7 @@ export BLOG_DYNAMIC_BLOG_ORIGIN=https://blog.20050619.xyz
 export BLOG_DYNAMIC_REPO_DIR=/opt/blog-project
 export BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
+export BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 sudo -E bash server/bootstrap-docker.sh
 ```
 
@@ -87,7 +88,7 @@ sudo bash server/bootstrap-linux.sh
 - 创建数据目录 `/var/lib/blog-dynamic`。
 - 创建环境文件 `/etc/blog-dynamic.env`。
 - 创建并启动 systemd 服务 `blog-dynamic`。
-- 创建 nginx 80 端口反向代理配置。
+- 创建 nginx 80 端口反向代理配置，默认 `client_max_body_size` 为 `24m`。
 
 备用脚本默认动态服务公开域名是：
 
@@ -105,6 +106,7 @@ export BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
 export BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 export BLOG_DYNAMIC_NODE_VERSION=22.11.0
+export BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 sudo -E bash server/bootstrap-linux.sh
 ```
 
@@ -139,7 +141,7 @@ activity.20050619.xyz  A  <SERVER_PUBLIC_IP>
 /etc/blog-dynamic.env    # 服务环境变量
 ```
 
-动态数据目录必须在仓库外，避免日记、动态草稿或兼容数据、访问量数据被提交。
+动态数据目录必须在仓库外，避免日记、动态草稿或兼容数据、访问量数据被提交。动态图片保存在 `/var/lib/blog-dynamic/uploads/`，迁移和备份时必须包含整个 `/var/lib/blog-dynamic`。
 
 ## 环境变量
 
@@ -156,6 +158,7 @@ BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
+BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 ```
 
 其中 `BLOG_DYNAMIC_ADMIN_TOKEN` 必须替换为足够长的随机值。不要把真实文件复制回仓库。
@@ -238,6 +241,7 @@ GET https://activity.20050619.xyz/health
 GET https://activity.20050619.xyz/api/stats?path=/blog/
 GET https://activity.20050619.xyz/api/dynamics?limit=6
 GET https://activity.20050619.xyz/api/life?limit=6
+GET https://activity.20050619.xyz/uploads/dynamics/<example-image>
 ```
 
 管理 Token 可用于受保护接口，网页端动态发布和日记入口分别使用发布密码、日记密码：

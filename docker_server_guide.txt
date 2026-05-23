@@ -1,0 +1,90 @@
+服务器 Docker 操作说明
+
+默认在服务器上执行下面命令。
+
+一、基础位置
+1. 动态服务目录：
+   /opt/blog-project/server
+
+2. 环境变量文件：
+   /etc/blog-dynamic.env
+
+3. 数据目录：
+   /var/lib/blog-dynamic
+   动态图片目录：
+   /var/lib/blog-dynamic/uploads
+
+二、最常用命令
+1. 查看容器是否运行：
+   sudo docker ps
+
+2. 查看动态服务日志：
+   cd /opt/blog-project/server
+   sudo docker compose logs -f
+
+3. 重启动态服务：
+   cd /opt/blog-project/server
+   sudo docker compose restart
+
+4. 停止动态服务：
+   cd /opt/blog-project/server
+   sudo docker compose stop
+
+5. 启动动态服务：
+   cd /opt/blog-project/server
+   sudo docker compose up -d
+
+三、更新服务
+如果改了 server 里的代码或 Docker 配置：
+
+cd /opt/blog-project/server
+sudo docker compose up -d --build
+
+四、检查服务
+1. 检查健康接口：
+   curl http://127.0.0.1:8787/health
+
+2. 检查 nginx 配置：
+   sudo nginx -t
+
+3. 重载 nginx：
+   sudo systemctl reload nginx
+
+4. 如果图片上传失败，检查 nginx 上传限制：
+   sudo grep -R "client_max_body_size" /etc/nginx
+   推荐至少是 24m
+
+五、修改密码
+编辑这个文件：
+sudo nano /etc/blog-dynamic.env
+
+重点字段：
+BLOG_DYNAMIC_POST_PASSWORD
+BLOG_DYNAMIC_DIARY_PASSWORD
+BLOG_DYNAMIC_ADMIN_TOKEN
+
+改完后重启：
+cd /opt/blog-project/server
+sudo docker compose restart
+
+六、查看容器内部
+sudo docker exec -it blog-dynamic sh
+
+退出容器：
+exit
+
+七、备份
+备份数据和配置：
+sudo tar -czf ~/blog-dynamic-backup.tar.gz /var/lib/blog-dynamic /etc/blog-dynamic.env
+
+八、不要随便执行
+sudo docker system prune -a --volumes
+这个命令可能清理镜像、缓存和卷数据，谨慎使用。
+
+九、日常最常用的几个命令
+cd /opt/blog-project/server
+sudo docker ps
+sudo docker compose logs -f
+sudo docker compose restart
+sudo docker compose up -d --build
+curl http://127.0.0.1:8787/health

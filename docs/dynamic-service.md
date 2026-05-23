@@ -7,7 +7,7 @@
 - 静态博客：Astro 构建，发布到 GitHub Pages。
 - 动态服务：Node.js 服务，部署在独立动态服务服务器。
 - 前端接入：通过 `PUBLIC_DYNAMIC_API_BASE` 配置 API 基础地址。
-- 写日记入口：连续点击小人 20 次且在 10 秒内完成后，打开日记密码确认。
+- 写日记入口：连续点击小人 20 次且在 8 秒内完成后，打开日记密码确认；密码正确后先进入日记本列表，再通过新建入口写日记。
 - 安全边界：小人入口只是隐藏入口，真正写入由动态服务的会话或认证保护。
 - 可迁移边界：迁移服务器时只需要迁移 `/etc/blog-dynamic.env` 和 `BLOG_DYNAMIC_DATA_DIR` 指向的数据目录。
 
@@ -24,6 +24,7 @@ BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
+BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 ```
 
 静态博客构建时使用：
@@ -49,15 +50,17 @@ PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 - `GET /health`：健康检查。
 - `GET /api/stats?path=/blog/`：读取全站和单页访问量。
 - `POST /api/stats/pageview`：记录一次页面访问，只保存聚合计数。
-- `GET /api/dynamics?limit=6`：读取已发布的公开动态。
+- `GET /api/dynamics?limit=6`：读取已发布的公开动态，包含公开图片引用。
 - `GET /api/life?limit=6`：兼容旧地址，返回同样的动态列表。
+- `GET /uploads/...`：读取动态图片，只允许读取动态服务数据目录下的图片文件。
 
 写入接口：
 
-- `POST /api/dynamics`：创建公开动态，需要发布密码。
+- `POST /api/dynamics/session`：验证动态发布密码并创建短期发布会话。
+- `POST /api/dynamics`：创建公开动态，需要发布密码、短期发布会话或管理员 Token，支持最多 4 张 JPG/PNG/WebP 图片。
 - `POST /api/diary/session`：验证日记密码并创建短期会话。
 - `POST /api/diary`：写入私密日记。
-- `GET /api/diary`：读取私密日记列表。
+- `GET /api/diary`：读取私密日记列表；`q` 参数可按标题或内容搜索。
 - `POST /api/life`：兼容旧地址，写入逻辑与动态接口一致。
 - `GET /admin/`：动态服务提供的简单管理页面。
 
@@ -75,6 +78,7 @@ Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
 - `dynamic-records.json`：公开动态记录。
 - `life-records.json`：旧生活记录兼容文件，仍会被公开 API 合并读取。
 - `diary-entries.json`：私密日记，只能通过认证 API 读取。
+- `uploads/`：动态图片目录，公开动态中附带的图片保存在这里。
 
 生产环境应把数据目录放在仓库外，例如 `/var/lib/blog-dynamic`，并做好服务器备份。
 

@@ -38,6 +38,7 @@ ALLOWED_ORIGINS="${BLOG_DYNAMIC_ALLOWED_ORIGINS:-${BLOG_ORIGIN},http://localhost
 CONFIGURE_NGINX="${BLOG_DYNAMIC_CONFIGURE_NGINX:-1}"
 ENABLE_SERVICE="${BLOG_DYNAMIC_ENABLE_SERVICE:-1}"
 GENERATE_PASSWORDS="${BLOG_DYNAMIC_GENERATE_PASSWORDS:-0}"
+NGINX_CLIENT_MAX_BODY_SIZE="${BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE:-24m}"
 
 strip_url_host() {
   local value="$1"
@@ -295,7 +296,9 @@ ensure_user_and_dirs() {
 
 install_source() {
   [ -f "$SOURCE_ROOT/server/index.mjs" ] || fail "Cannot find server/index.mjs beside this script."
-  install -m 0644 "$SOURCE_ROOT/server/index.mjs" "$REPO_DIR/server/index.mjs"
+  if [ ! -f "$REPO_DIR/server/index.mjs" ] || ! [ "$SOURCE_ROOT/server/index.mjs" -ef "$REPO_DIR/server/index.mjs" ]; then
+    install -m 0644 "$SOURCE_ROOT/server/index.mjs" "$REPO_DIR/server/index.mjs"
+  fi
 }
 
 write_environment_file() {
@@ -304,6 +307,7 @@ write_environment_file() {
   ALLOWED_ORIGINS="$(env_or_existing_or_default BLOG_DYNAMIC_ALLOWED_ORIGINS "$ALLOWED_ORIGINS")"
   DATA_DIR="$(env_or_existing_or_default BLOG_DYNAMIC_DATA_DIR "$DATA_DIR")"
   PUBLIC_BASE_URL="$(env_or_existing_or_default BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL")"
+  NGINX_CLIENT_MAX_BODY_SIZE="$(env_or_existing_or_default BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE")"
 
   local admin_token post_password diary_password temp_file
   admin_token="$(secret_or_existing_or_generate BLOG_DYNAMIC_ADMIN_TOKEN)"
@@ -320,6 +324,7 @@ write_environment_file() {
     write_env_line BLOG_DYNAMIC_DIARY_PASSWORD "$diary_password"
     write_env_line BLOG_DYNAMIC_DATA_DIR "$DATA_DIR"
     write_env_line BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL"
+    write_env_line BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE"
   } >"$temp_file"
 
   install -m 0600 -o root -g root "$temp_file" "$ENV_FILE"
@@ -376,7 +381,7 @@ server {
     listen 80;
     server_name ${server_name};
 
-    client_max_body_size 1m;
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
 
     location / {
         proxy_pass http://${BIND_HOST}:${BIND_PORT};
