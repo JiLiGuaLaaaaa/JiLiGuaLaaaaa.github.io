@@ -30,18 +30,41 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       ></textarea>
     </label>
     <div class="dynamic-composer__bar">
-      <label>
-        <span>心情</span>
-        <input name="mood" maxlength="24" placeholder="可选" data-dynamic-mood />
-      </label>
-      <label>
-        <span>发布密码</span>
-        <input name="password" type="password" autocomplete="off" data-dynamic-password />
-      </label>
       <button type="submit" data-dynamic-submit>发布</button>
     </div>
     <p class="dynamic-composer__status" data-dynamic-form-status></p>
   </form>
+  <div class="dynamic-password-modal" data-dynamic-password-modal hidden>
+    <div class="dynamic-password-modal__backdrop" data-dynamic-password-close></div>
+    <section
+      class="dynamic-password-modal__panel"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dynamic-password-modal-title"
+    >
+      <button
+        class="dynamic-password-modal__close"
+        type="button"
+        aria-label="关闭"
+        data-dynamic-password-close
+      >
+        ×
+      </button>
+      <form class="dynamic-password-modal__form" data-dynamic-password-form autocomplete="off">
+        <h3 id="dynamic-password-modal-title">确认发布动态</h3>
+        <p class="dynamic-password-modal__hint">请输入发布密码后继续。</p>
+        <label>
+          <span>发布密码</span>
+          <input type="password" autocomplete="off" data-dynamic-password />
+        </label>
+        <div class="dynamic-password-modal__actions">
+          <button type="button" data-dynamic-password-cancel>取消</button>
+          <button type="submit" data-dynamic-password-confirm>确认发布</button>
+        </div>
+      </form>
+      <p class="dynamic-password-modal__status" data-dynamic-password-status></p>
+    </section>
+  </div>
   <div class="dynamic-feed__status" data-dynamic-feed-status>正在读取公开动态。</div>
   <div class="dynamic-feed__list" data-dynamic-feed-list hidden></div>
 </section>
@@ -108,12 +131,10 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         .map((record) => {
           const title = escapeHtml(String(record.title || "动态"));
           const content = escapeHtml(String(record.content || ""));
-          const mood = escapeHtml(String(record.mood || ""));
           const createdAt = formatDate(String(record.createdAt || ""));
           return `<article class="dynamic-item">
             <div class="dynamic-item__meta">
               ${createdAt ? `<time datetime="${escapeHtml(String(record.createdAt))}">${createdAt}</time>` : ""}
-              ${mood ? `<span>${mood}</span>` : ""}
             </div>
             <h3>${title}</h3>
             <p>${content}</p>
@@ -135,9 +156,38 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     const formStatus = root.querySelector<HTMLElement>("[data-dynamic-form-status]");
     const submitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-submit]");
     const contentInput = root.querySelector<HTMLTextAreaElement>("[data-dynamic-content]");
-    const moodInput = root.querySelector<HTMLInputElement>("[data-dynamic-mood]");
+    const passwordModal = root.querySelector<HTMLElement>("[data-dynamic-password-modal]");
+    const passwordForm = root.querySelector<HTMLFormElement>("[data-dynamic-password-form]");
     const passwordInput = root.querySelector<HTMLInputElement>("[data-dynamic-password]");
-    if (!form || !formStatus || !submitButton || !contentInput || !moodInput || !passwordInput) return;
+    const passwordStatus = root.querySelector<HTMLElement>("[data-dynamic-password-status]");
+    const passwordSubmitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-password-confirm]");
+    if (
+      !form ||
+      !formStatus ||
+      !submitButton ||
+      !contentInput ||
+      !passwordModal ||
+      !passwordForm ||
+      !passwordInput ||
+      !passwordStatus ||
+      !passwordSubmitButton
+    ) {
+      return;
+    }
+
+    const setPasswordModalOpen = (open: boolean) => {
+      passwordModal.hidden = !open;
+      document.documentElement.classList.toggle("has-modal-open", open);
+      if (open) {
+        window.setTimeout(() => passwordInput.focus(), 40);
+      }
+    };
+
+    const closePasswordModal = () => {
+      passwordStatus.textContent = "";
+      passwordInput.value = "";
+      setPasswordModalOpen(false);
+    };
 
     if (!apiBase) {
       submitButton.disabled = true;
@@ -148,40 +198,67 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const content = contentInput.value.trim();
-      const mood = moodInput.value.trim();
-      const password = passwordInput.value;
       if (!content) {
         formStatus.textContent = "先写一点内容。";
         contentInput.focus();
         return;
       }
+
+      setPasswordModalOpen(true);
+      passwordStatus.textContent = "请输入发布密码。";
+      passwordInput.value = "";
+    });
+
+    passwordModal
+      .querySelectorAll<HTMLElement>("[data-dynamic-password-close],[data-dynamic-password-cancel]")
+      .forEach((closeTarget) => {
+        closeTarget.addEventListener("click", closePasswordModal);
+      });
+
+    passwordForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = contentInput.value.trim();
+      const password = passwordInput.value;
+      if (!content) {
+        passwordStatus.textContent = "先写一点内容。";
+        closePasswordModal();
+        contentInput.focus();
+        return;
+      }
       if (!password) {
-        formStatus.textContent = "请输入发布密码。";
+        passwordStatus.textContent = "请输入发布密码。";
         passwordInput.focus();
         return;
       }
 
       submitButton.disabled = true;
-      formStatus.textContent = "正在发布。";
+      passwordSubmitButton.disabled = true;
+      passwordStatus.textContent = "正在发布。";
       try {
         const response = await fetch(`${apiBase}/api/dynamics`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, mood, password })
+          body: JSON.stringify({ content, password })
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload?.ok) {
           throw new Error(payload?.error || "动态发布失败。");
         }
         contentInput.value = "";
-        moodInput.value = "";
-        passwordInput.value = "";
+        closePasswordModal();
         formStatus.textContent = "已发布。";
         await renderDynamicFeed(root);
       } catch (error) {
-        formStatus.textContent = error instanceof Error ? error.message : "动态发布失败。";
+        passwordStatus.textContent = error instanceof Error ? error.message : "动态发布失败。";
       } finally {
         submitButton.disabled = false;
+        passwordSubmitButton.disabled = false;
+      }
+    });
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !passwordModal.hidden) {
+        closePasswordModal();
       }
     });
   };
@@ -261,9 +338,10 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-composer__bar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    grid-template-columns: auto;
     gap: 10px;
     align-items: end;
+    justify-content: start;
   }
 
   .dynamic-composer button {
@@ -287,6 +365,130 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     margin: 0;
     color: var(--muted);
     font-size: 0.9rem;
+  }
+
+  .dynamic-password-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
+
+  .dynamic-password-modal[hidden] {
+    display: none;
+  }
+
+  .dynamic-password-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(31, 20, 30, 0.46);
+    backdrop-filter: blur(8px);
+  }
+
+  .dynamic-password-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 460px);
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface), white 8%);
+    box-shadow: 0 24px 70px rgba(76, 42, 61, 0.28);
+  }
+
+  :root[data-theme="dark"] .dynamic-password-modal__panel {
+    background: color-mix(in srgb, var(--surface), black 8%);
+  }
+
+  .dynamic-password-modal__close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface-muted);
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .dynamic-password-modal__form {
+    display: grid;
+    gap: 12px;
+  }
+
+  .dynamic-password-modal__form h3 {
+    margin: 0;
+    padding-right: 36px;
+    font-size: 1.2rem;
+    line-height: 1.35;
+  }
+
+  .dynamic-password-modal__hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .dynamic-password-modal__form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 800;
+  }
+
+  .dynamic-password-modal__form input {
+    width: 100%;
+    height: 42px;
+    padding: 0 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface), transparent 4%);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .dynamic-password-modal__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .dynamic-password-modal__actions button {
+    min-width: 96px;
+    height: 40px;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 900;
+  }
+
+  .dynamic-password-modal__actions button[type="button"] {
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
+  .dynamic-password-modal__actions button[type="submit"] {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .dynamic-password-modal__actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+
+  .dynamic-password-modal__status {
+    min-height: 1.4em;
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 0.92rem;
   }
 
   .dynamic-feed__list {
@@ -329,6 +531,18 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     }
 
     .dynamic-composer button {
+      width: 100%;
+    }
+
+    .dynamic-password-modal {
+      padding: 12px;
+    }
+
+    .dynamic-password-modal__panel {
+      padding: 18px;
+    }
+
+    .dynamic-password-modal__actions button {
       width: 100%;
     }
   }

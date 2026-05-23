@@ -377,6 +377,13 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     setDiaryModalOpen(true);
   };
 
+  const openDiaryGate = () => {
+    showDiaryGate();
+    if (!diaryApiBase) {
+      setDiaryStatus("动态服务地址还没有配置，暂时不能验证日记密码。");
+    }
+  };
+
   const showDiaryEditor = () => {
     if (!diaryGate || !diaryEditor) return;
     diaryGate.hidden = true;
@@ -391,19 +398,18 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     if (diaryClickTimes.length < diaryClickThreshold) return false;
 
     diaryClickTimes = [];
-    if (!diaryApiBase) {
-      say("日记功能还没有接上动态服务。");
-      return true;
-    }
-
     say("先确认一下密码。");
-    showDiaryGate();
+    openDiaryGate();
     return true;
   };
 
   diaryGate?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!diaryApiBase || !diaryPasswordInput) return;
+    if (!diaryPasswordInput) return;
+    if (!diaryApiBase) {
+      setDiaryStatus("动态服务地址还没有配置。请先配置 PUBLIC_DYNAMIC_API_BASE 并重新部署静态站。");
+      return;
+    }
     const password = diaryPasswordInput.value;
     if (!password) {
       setDiaryStatus("请输入密码。");

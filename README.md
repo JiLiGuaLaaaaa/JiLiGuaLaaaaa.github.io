@@ -4,9 +4,9 @@
 
 当前视觉优先参考 `uxiaohan/vhAstro-Theme`，保留静态博客架构，迁移顶部 Banner、资料卡、公告卡、磨砂卡片和文章列表等前端表现；不接入主题里的 Twikoo、Waline 或其他真实评论服务。
 
-当前公开博客只发布静态页面，不依赖 ECS、Docker、数据库、后端 API、WordPress 或 Ghost。
+当前公开博客只发布静态页面，不依赖 Docker、数据库、后端 API、WordPress 或 Ghost。
 
-本次新增的访问量、动态发布和写日记能力采用“静态博客 + ECS 独立动态服务”的方式：GitHub Pages 仍只托管静态页面，ECS 只运行单独的动态 API 服务。真实服务器地址、Token、密码、证书私钥和数据库内容不写入仓库。
+本次新增的访问量、动态发布和写日记能力采用“静态博客 + 独立动态服务服务器”的方式：GitHub Pages 仍只托管静态页面，带公网 IP 的私人服务器只运行单独的动态 API 服务。真实服务器地址、Token、密码、证书私钥和数据库内容不写入仓库。
 
 GitHub 仓库地址：`git@github.com:JiLiGuaLaaaaa/JiLiGuaLaaaaa.github.io.git`。
 
@@ -23,7 +23,8 @@ node server/index.mjs
 - `pnpm dev`：本地开发预览。
 - `pnpm build`：检查并构建静态站点。
 - `pnpm preview`：预览构建后的站点。
-- `node server/index.mjs`：本地启动 ECS 动态服务骨架，真实部署时需要通过环境变量配置。
+- `node server/index.mjs`：本地启动动态服务骨架，真实部署时需要通过环境变量配置。
+- `sudo bash server/bootstrap-linux.sh`：在目标 Linux 服务器上配置动态服务、systemd、nginx 和数据目录。
 
 ## 写文章
 
@@ -57,14 +58,14 @@ draft: false
 - 标签：按主题分类文章。
 - 归档：按年份整理文章。
 - 搜索：使用纯前端静态搜索数据，不连接后端。
-- 动态：`/dynamic/` 页面会从 ECS 动态服务读取已发布的公开动态；如果未配置动态服务或 API 不可用，会显示降级提示，不影响静态博客浏览。
+- 动态：`/dynamic/` 页面会从独立动态服务服务器读取已发布的公开动态；如果未配置动态服务或 API 不可用，会显示降级提示，不影响静态博客浏览。
 - 访问量：页脚会在配置 `PUBLIC_DYNAMIC_API_BASE` 后显示全站访问量和当前页面访问量；统计只保存聚合计数。
 - RSS：`/rss.xml`，用于订阅文章更新。
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - RSS、Sitemap 和 SEO 入口在页面底部使用两组拼接复古徽章展示：`SEO + Sitemap` 指向 sitemap，`订阅 + RSS` 指向 RSS。
 - 评论：当前不显示评论区，也不显示评论占位；以后如果需要评论，应作为独立动态服务处理。
-- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏。连续短时间点击小人多次会打开写日记入口，入口会先走密码确认，再进入日记编辑；真正写入日记必须经过 ECS 动态服务认证，入口本身不是安全边界。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
+- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏。连续短时间点击小人多次会打开写日记入口，入口会先走密码确认，再进入日记编辑；真正写入日记必须经过动态服务认证，入口本身不是安全边界。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
 
 公开资料：
 
@@ -74,7 +75,27 @@ draft: false
 
 ## 动态服务
 
-动态服务源码放在 `server/`，设计说明放在 `docs/dynamic-service.md`，ECS 部署说明放在 `docs/ecs-deployment.md`。
+动态服务源码放在 `server/`，设计说明放在 `docs/dynamic-service.md`，服务器部署说明放在 `docs/server-deployment.md`。
+
+推荐把动态服务部署到带公网 IP 的独立 Linux 服务器，默认公开地址使用：
+
+```text
+https://activity.20050619.xyz
+```
+
+这个地址需要同时出现在三个地方：
+
+- Cloudflare DNS：`activity` 子域名解析到动态服务服务器公网 IP。
+- 服务器环境变量：`BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz`，并在 `BLOG_DYNAMIC_ALLOWED_ORIGINS` 中允许 `https://blog.20050619.xyz`。
+- GitHub Actions Variable：`PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz`，用于把动态服务地址写入静态页面构建产物。
+
+服务器上一键配置命令是：
+
+```bash
+sudo bash server/bootstrap-linux.sh
+```
+
+脚本默认使用 `/opt/blog-project`、`/var/lib/blog-dynamic` 和 `/etc/blog-dynamic.env`。这些路径都可以通过环境变量覆盖，方便以后迁移到其他服务器。
 
 动态服务提供：
 
@@ -97,16 +118,35 @@ BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
 BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
-BLOG_DYNAMIC_PUBLIC_BASE_URL=https://api.example.com
+BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 ```
 
 静态博客构建时可配置：
 
 ```text
-PUBLIC_DYNAMIC_API_BASE=https://api.example.com
+PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 ```
 
-如果暂时不配置这些变量，博客仍能作为纯静态站点正常访问，只是不显示访问量，动态页面不会读取服务器数据，连续点击小人也不会打开真实日记入口。
+`PUBLIC_DYNAMIC_API_BASE` 需要配置在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions -> Variables` 中，变量名保持 `PUBLIC_DYNAMIC_API_BASE`，值填写你的动态服务公开地址。当前默认建议填写 `https://activity.20050619.xyz`。GitHub Actions 构建时会读取这个变量并写入静态页面。如果它为空，线上博客仍会正常显示静态内容，但访问量、动态列表、动态发布和日记验证都会提示未接上动态服务。
+
+动态发布密码和日记密码不在 GitHub Pages 或前端代码里修改，而是在动态服务服务器环境变量里修改：
+
+- 动态发布密码：修改 `BLOG_DYNAMIC_POST_PASSWORD`
+- 日记密码：修改 `BLOG_DYNAMIC_DIARY_PASSWORD`
+
+如果用 systemd 部署，通常是在服务器上的 `/etc/blog-dynamic.env` 中改这两个值；修改后重启动态服务。如果只是改 `PUBLIC_DYNAMIC_API_BASE`，需要重新运行 GitHub Actions 部署静态站。
+
+当前可迁移部署默认关系是：
+
+```text
+blog.20050619.xyz       -> GitHub Pages 静态博客
+activity.20050619.xyz   -> 私人服务器公网 IP 上的动态服务
+PUBLIC_DYNAMIC_API_BASE -> https://activity.20050619.xyz
+```
+
+服务器侧由 `/etc/blog-dynamic.env` 控制运行参数，Cloudflare 负责把 `activity` 子域名解析到服务器公网 IP。以后迁移服务器时，只需要迁移 `/etc/blog-dynamic.env` 和 `/var/lib/blog-dynamic`，再把 `activity` 的 DNS 指到新公网 IP；如果动态服务公开域名不变，GitHub Actions Variable 不需要改。
+
+如果暂时不配置这些变量，博客仍能作为纯静态站点正常访问，只是不显示访问量，动态页面不会读取服务器数据；连续点击小人 20 次仍会打开日记密码框，但会提示动态服务地址还没有配置。
 
 图片资源放在 `public/images/`：
 
@@ -168,16 +208,16 @@ CNAME 的意思是把 `blog.20050619.xyz` 指向 GitHub Pages 的默认域名。
 
 不要把 Cloudflare API Token、账号密码或任何密钥写进仓库。
 
-## 为什么公开博客本体不使用 ECS
+## 为什么公开博客本体不部署到服务器
 
 公开博客是静态站点，GitHub Pages 已经可以托管 HTML、CSS、JS 和图片，不需要服务器长期运行。
 
-ECS 只用于独立动态服务，例如访问量统计、公开动态发布和私密日记管理。公开博客本体仍不部署到 ECS，也不把后端代码混入 GitHub Pages 构建产物。
+独立服务器只用于动态服务，例如访问量统计、公开动态发布和私密日记管理。公开博客本体仍不部署到服务器，也不把后端代码混入 GitHub Pages 构建产物。
 
-推荐使用独立 API 子域名指向 ECS 动态服务，例如：
+推荐使用独立 API 子域名指向动态服务，例如：
 
 ```text
-https://api.example.com -> http://127.0.0.1:8787
+https://activity.20050619.xyz -> http://127.0.0.1:8787
 ```
 
 真实 DNS、HTTPS 和反向代理配置需要在 Cloudflare、服务器或控制台中完成，并以本地配置和用户最终确认为准。
@@ -186,7 +226,7 @@ https://api.example.com -> http://127.0.0.1:8787
 
 不要把以下内容提交到仓库：
 
-- ECS 登录名、密码、公网 IP 和密码组合
+- 服务器登录名、密码、公网 IP 和密码组合
 - SSH 私钥
 - Cloudflare API Token
 - GitHub Token

@@ -1,14 +1,15 @@
-# ECS 动态服务方案
+# 独立动态服务方案
 
-公开博客继续由 GitHub Pages 托管，动态功能独立运行在 ECS 上。仓库只保存源码、示例配置和部署说明，不保存真实域名、服务器地址、Token、数据库、访问日志或私密日记内容。
+公开博客继续由 GitHub Pages 托管，动态功能独立运行在一台 Linux 动态服务服务器上。服务器可以是带公网 IP 的私人小电脑，也可以是 ECS、VPS 或其他云服务器。仓库只保存源码、示例配置和部署说明，不保存真实服务器地址、账号密码、Token、数据库、访问日志或私密日记内容。
 
 ## 架构边界
 
 - 静态博客：Astro 构建，发布到 GitHub Pages。
-- 动态服务：Node.js 服务，部署在 ECS。
+- 动态服务：Node.js 服务，部署在独立动态服务服务器。
 - 前端接入：通过 `PUBLIC_DYNAMIC_API_BASE` 配置 API 基础地址。
 - 写日记入口：连续点击小人 20 次且在 10 秒内完成后，打开日记密码确认。
 - 安全边界：小人入口只是隐藏入口，真正写入由动态服务的会话或认证保护。
+- 可迁移边界：迁移服务器时只需要迁移 `/etc/blog-dynamic.env` 和 `BLOG_DYNAMIC_DATA_DIR` 指向的数据目录。
 
 ## 环境变量
 
@@ -22,16 +23,24 @@ BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
 BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
-BLOG_DYNAMIC_PUBLIC_BASE_URL=https://api.example.com
+BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 ```
 
 静态博客构建时使用：
 
 ```text
-PUBLIC_DYNAMIC_API_BASE=https://api.example.com
+PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 ```
 
 这些值都必须在真实部署环境中填写。不要把真实值提交到仓库。
+
+密码修改位置：
+
+- 动态发布密码由服务器环境变量 `BLOG_DYNAMIC_POST_PASSWORD` 控制。
+- 日记密码由服务器环境变量 `BLOG_DYNAMIC_DIARY_PASSWORD` 控制。
+- 静态页面连接哪个动态服务由 GitHub Actions Variable `PUBLIC_DYNAMIC_API_BASE` 控制。
+
+修改服务器环境变量后需要重启动态服务；修改 GitHub Actions Variable 后需要重新部署 GitHub Pages。
 
 ## API 设计
 
@@ -75,10 +84,10 @@ Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
 
 ## 域名和反向代理
 
-建议使用独立 API 子域名指向 ECS 动态服务。示例反向代理关系：
+建议使用独立 API 子域名指向动态服务服务器。默认建议子域名是 `activity.20050619.xyz`，也可以迁移到其他域名。示例反向代理关系：
 
 ```text
-https://api.example.com  ->  http://127.0.0.1:8787
+https://activity.20050619.xyz  ->  http://127.0.0.1:8787
 ```
 
 真实 DNS、HTTPS 证书和反向代理配置需要在服务器或控制台中完成。仓库文档只使用占位符。

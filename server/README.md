@@ -1,12 +1,15 @@
 # 博客动态服务
 
-这个目录是部署到 ECS 的独立动态服务，不属于 GitHub Pages 静态构建产物。
+这个目录是部署到独立动态服务服务器的 Node.js 服务，不属于 GitHub Pages 静态构建产物。服务器可以是带公网 IP 的私人 Linux 小电脑，也可以是 ECS、VPS 或其他云服务器。
 
 ## 本地运行
 
 ```bash
 node server/index.mjs
+sudo bash server/bootstrap-linux.sh
 ```
+
+`node server/index.mjs` 用于本地测试。`sudo bash server/bootstrap-linux.sh` 用于目标 Linux 服务器上的可迁移部署，会创建 systemd、nginx、环境文件和数据目录。
 
 生产环境必须设置真实环境变量。先复制示例文件到服务器上的 `.env` 或 systemd 环境文件，再把占位值替换成真实值。
 
@@ -18,10 +21,24 @@ BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
 BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
-BLOG_DYNAMIC_PUBLIC_BASE_URL=https://api.example.com
+BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 ```
 
 不要把真实 `.env`、数据库文件、日记内容或访问日志提交进仓库。
+
+密码修改位置：
+
+- 动态发布密码：`BLOG_DYNAMIC_POST_PASSWORD`
+- 日记密码：`BLOG_DYNAMIC_DIARY_PASSWORD`
+
+如果使用 systemd，一般修改服务器上的 `/etc/blog-dynamic.env` 后重启服务。静态博客页面要能连接这个服务，还需要在 GitHub Actions Variables 中配置 `PUBLIC_DYNAMIC_API_BASE` 并重新部署。
+
+可迁移部署只依赖两类服务器状态：
+
+- `/etc/blog-dynamic.env`
+- `/var/lib/blog-dynamic`
+
+迁移到新服务器时，把这两项迁过去，重新运行 `server/bootstrap-linux.sh`，再把动态服务域名的 DNS 指向新服务器即可。
 
 ## API
 

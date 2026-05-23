@@ -414,7 +414,6 @@ const adminHtml = () => `<!doctype html>
     <section>
       <h2>公开动态</h2>
       <label>标题 <input id="life-title" /></label>
-      <label>心情 <input id="life-mood" /></label>
       <label>状态
         <select id="life-status">
           <option value="draft">草稿</option>
@@ -458,7 +457,6 @@ const adminHtml = () => `<!doctype html>
         try {
           await postJson("/api/life", {
             title: document.querySelector("#life-title").value,
-            mood: document.querySelector("#life-mood").value,
             status: document.querySelector("#life-status").value,
             content: document.querySelector("#life-content").value
           });
