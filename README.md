@@ -24,7 +24,8 @@ node server/index.mjs
 - `pnpm build`：检查并构建静态站点。
 - `pnpm preview`：预览构建后的站点。
 - `node server/index.mjs`：本地启动动态服务骨架，真实部署时需要通过环境变量配置。
-- `sudo bash server/bootstrap-linux.sh`：在目标 Linux 服务器上配置动态服务、systemd、nginx 和数据目录。
+- `sudo bash server/bootstrap-docker.sh`：在目标 Linux 服务器上用 Docker 配置动态服务、nginx 和数据目录。
+- `sudo bash server/bootstrap-linux.sh`：非 Docker 备用部署方式。
 
 ## 写文章
 
@@ -89,13 +90,13 @@ https://activity.20050619.xyz
 - 服务器环境变量：`BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz`，并在 `BLOG_DYNAMIC_ALLOWED_ORIGINS` 中允许 `https://blog.20050619.xyz`。
 - GitHub Actions Variable：`PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz`，用于把动态服务地址写入静态页面构建产物。
 
-服务器上一键配置命令是：
+服务器上一键配置命令推荐使用 Docker：
 
 ```bash
-sudo bash server/bootstrap-linux.sh
+sudo bash server/bootstrap-docker.sh
 ```
 
-脚本默认使用 `/opt/blog-project`、`/var/lib/blog-dynamic` 和 `/etc/blog-dynamic.env`。这些路径都可以通过环境变量覆盖，方便以后迁移到其他服务器。
+Docker 脚本默认使用 `/opt/blog-project`、`/var/lib/blog-dynamic` 和 `/etc/blog-dynamic.env`。容器只把服务绑定到宿主机 `127.0.0.1:8787`，公开访问继续交给 nginx 或 Cloudflare。非 Docker 环境仍可使用 `server/bootstrap-linux.sh` 作为备用。
 
 动态服务提供：
 
@@ -118,6 +119,8 @@ BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
 BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
+BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
+BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 ```
 

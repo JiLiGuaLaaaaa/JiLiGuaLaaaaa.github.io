@@ -158,7 +158,9 @@
 
 - [x] 读取 `requirements.md`、`plan.md`、`README.md` 和现有动态服务部署模板，确认旧文档偏 ECS 且当前登录信息是密码式服务器信息
 - [x] 增加 Linux 服务器一键部署脚本，支持私人小电脑、ECS 或未来其他服务器，避免把真实服务器配置写入仓库
+- [x] 根据首次远程部署中暴露的 Node.js 包安装风险，增强部署脚本：优先使用可移植 Node.js，支持 `/opt/blog-node`、`BLOG_DYNAMIC_NODE_DIR` 和 `BLOG_DYNAMIC_NODE_VERSION`，并在 apt/dpkg 半坏状态下先尝试修复
+- [x] 增加 Docker / Docker Compose 部署路径，容器内只跑动态服务，宿主机继续负责 nginx 或其他反向代理
 - [x] 更新动态服务文档，把“ECS 专用”改为“独立动态服务服务器”，并说明迁移时只需迁移环境文件和数据目录
 - [x] 更新 README 中的动态服务部署说明，明确 `activity.20050619.xyz`、Cloudflare、GitHub Actions Variable 和服务器环境变量的关系
-- [ ] 使用本地配置文件中的登录信息连接私人服务器并执行动态服务部署，不在日志和文档中输出真实信息（本次远程修改被执行审批拦截，需用户明确授权后继续）
-- [x] 运行脚本语法检查、服务端语法检查和敏感信息扫描，确认没有提交真实 IP、账号、密码、Token 或证书私钥
+- [x] 使用本地配置文件中的登录信息连接私人服务器并执行 Docker 动态服务部署，不在日志和文档中输出真实信息（已完成 SSH 连接、上传、Docker Compose 启动、容器运行检查、本机 health 检查和 nginx 配置检查）
+- [x] 重新运行部署脚本修改后的检查、服务端语法检查和敏感信息扫描，确认没有提交真实 IP、账号、密码、Token 或证书私钥；本机未安装 Docker CLI，Compose 结构已通过远端实际 Docker 部署、容器 health 和 nginx 配置检查验证

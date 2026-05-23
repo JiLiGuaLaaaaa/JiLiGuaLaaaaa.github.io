@@ -17,23 +17,30 @@ GitHub Pages 静态博客
 
 服务器可以是带公网 IP 的私人 Linux 小电脑，也可以是 ECS、VPS 或其他云服务器。迁移时不需要改前端代码，只需要迁移环境文件、数据目录，并把 DNS 指到新服务器。
 
-## 一键部署脚本
+## Docker 一键部署脚本
 
-仓库提供通用 Linux 部署脚本：
+推荐使用 Docker 部署动态服务。宿主机只保留 nginx、Cloudflare 前置或其他反向代理职责，Node.js 运行时在容器里，减少服务器迁移时的环境差异。
 
 ```bash
-sudo bash server/bootstrap-linux.sh
+sudo bash server/bootstrap-docker.sh
 ```
 
 脚本会完成：
 
-- 检查或安装 Node.js、nginx。
-- 创建系统用户 `blog`。
-- 把动态服务代码放到 `/opt/blog-project/server/index.mjs`。
+- 检查或安装 Docker、Docker Compose、nginx。
+- 把动态服务代码、`Dockerfile` 和 `docker-compose.yml` 放到 `/opt/blog-project/server/`。
 - 创建数据目录 `/var/lib/blog-dynamic`。
 - 创建环境文件 `/etc/blog-dynamic.env`。
-- 创建并启动 systemd 服务 `blog-dynamic`。
+- 构建并启动 `blog-dynamic` 容器。
 - 创建 nginx 80 端口反向代理配置。
+
+容器默认只映射到宿主机：
+
+```text
+127.0.0.1:8787 -> container:8787
+```
+
+公开访问仍通过 nginx 或 Cloudflare 到达 `https://activity.20050619.xyz`。
 
 默认动态服务公开域名是：
 
@@ -49,7 +56,7 @@ export BLOG_DYNAMIC_BLOG_ORIGIN=https://blog.20050619.xyz
 export BLOG_DYNAMIC_REPO_DIR=/opt/blog-project
 export BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
-sudo -E bash server/bootstrap-linux.sh
+sudo -E bash server/bootstrap-docker.sh
 ```
 
 如果非交互执行脚本，必须提前设置密码变量，或者允许脚本自动生成：
@@ -58,10 +65,59 @@ sudo -E bash server/bootstrap-linux.sh
 export BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 export BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 export BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
-sudo -E bash server/bootstrap-linux.sh
+sudo -E bash server/bootstrap-docker.sh
 ```
 
 这些真实值只应存在于目标服务器环境中，不要复制回仓库。
+
+## 非 Docker 备用脚本
+
+仓库也保留通用 Linux 直装脚本：
+
+```bash
+sudo bash server/bootstrap-linux.sh
+```
+
+备用脚本会完成：
+
+- 检查或安装 Node.js、nginx。
+- 创建系统用户 `blog`。
+- 把动态服务代码放到 `/opt/blog-project/server/index.mjs`。
+- 必要时把可移植 Node.js 安装到 `/opt/blog-node`，减少对发行版包源状态的依赖。
+- 创建数据目录 `/var/lib/blog-dynamic`。
+- 创建环境文件 `/etc/blog-dynamic.env`。
+- 创建并启动 systemd 服务 `blog-dynamic`。
+- 创建 nginx 80 端口反向代理配置。
+
+备用脚本默认动态服务公开域名是：
+
+```text
+activity.20050619.xyz
+```
+
+可以在运行脚本前用环境变量覆盖：
+
+```bash
+export BLOG_DYNAMIC_DOMAIN=activity.20050619.xyz
+export BLOG_DYNAMIC_BLOG_ORIGIN=https://blog.20050619.xyz
+export BLOG_DYNAMIC_REPO_DIR=/opt/blog-project
+export BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
+export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
+export BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
+export BLOG_DYNAMIC_NODE_VERSION=22.11.0
+sudo -E bash server/bootstrap-linux.sh
+```
+
+如果非交互执行备用脚本，也必须提前设置密码变量，或者允许脚本自动生成：
+
+```bash
+export BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
+export BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
+export BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
+sudo -E bash server/bootstrap-linux.sh
+```
+
+Docker 方案是当前推荐路径，备用脚本只用于无法使用 Docker 的服务器。
 
 ## DNS
 
@@ -97,6 +153,8 @@ BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
 BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
 BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
+BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
+BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 ```
 

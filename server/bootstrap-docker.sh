@@ -4,11 +4,11 @@ set -Eeuo pipefail
 umask 027
 
 log() {
-  printf '[blog-dynamic] %s\n' "$*"
+  printf '[blog-dynamic-docker] %s\n' "$*"
 }
 
 fail() {
-  printf '[blog-dynamic] ERROR: %s\n' "$*" >&2
+  printf '[blog-dynamic-docker] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -23,21 +23,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SERVICE_NAME="${BLOG_DYNAMIC_SERVICE_NAME:-blog-dynamic}"
-SERVICE_USER="${BLOG_DYNAMIC_SERVICE_USER:-blog}"
 REPO_DIR="${BLOG_DYNAMIC_REPO_DIR:-/opt/blog-project}"
-NODE_DIR="${BLOG_DYNAMIC_NODE_DIR:-/opt/blog-node}"
-NODE_VERSION="${BLOG_DYNAMIC_NODE_VERSION:-22.11.0}"
 DATA_DIR="${BLOG_DYNAMIC_DATA_DIR:-/var/lib/blog-dynamic}"
 ENV_FILE="${BLOG_DYNAMIC_ENV_FILE:-/etc/blog-dynamic.env}"
-BIND_HOST="${BLOG_DYNAMIC_HOST:-127.0.0.1}"
+BIND_HOST="${BLOG_DYNAMIC_HOST:-0.0.0.0}"
 BIND_PORT="${BLOG_DYNAMIC_PORT:-8787}"
+CONTAINER_PORT="${BLOG_DYNAMIC_CONTAINER_PORT:-8787}"
 DYNAMIC_DOMAIN="${BLOG_DYNAMIC_DOMAIN:-activity.20050619.xyz}"
 BLOG_ORIGIN="${BLOG_DYNAMIC_BLOG_ORIGIN:-https://blog.20050619.xyz}"
 PUBLIC_BASE_URL="${BLOG_DYNAMIC_PUBLIC_BASE_URL:-https://${DYNAMIC_DOMAIN}}"
 ALLOWED_ORIGINS="${BLOG_DYNAMIC_ALLOWED_ORIGINS:-${BLOG_ORIGIN},http://localhost:4321}"
 CONFIGURE_NGINX="${BLOG_DYNAMIC_CONFIGURE_NGINX:-1}"
-ENABLE_SERVICE="${BLOG_DYNAMIC_ENABLE_SERVICE:-1}"
 GENERATE_PASSWORDS="${BLOG_DYNAMIC_GENERATE_PASSWORDS:-0}"
+INSTALL_DOCKER="${BLOG_DYNAMIC_INSTALL_DOCKER:-1}"
+NODE_IMAGE="${BLOG_DYNAMIC_NODE_IMAGE:-node:22-bookworm-slim}"
 
 strip_url_host() {
   local value="$1"
@@ -90,23 +89,6 @@ generate_secret() {
   fi
   od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
   printf '\n'
-}
-
-node_arch() {
-  case "$(uname -m)" in
-    x86_64 | amd64)
-      printf 'x64'
-      ;;
-    aarch64 | arm64)
-      printf 'arm64'
-      ;;
-    armv7l)
-      printf 'armv7l'
-      ;;
-    *)
-      fail "Unsupported CPU architecture for portable Node.js: $(uname -m)"
-      ;;
-  esac
 }
 
 secret_or_existing_or_generate() {
@@ -170,14 +152,20 @@ write_env_line() {
   printf '%s="%s"\n' "$key" "$value"
 }
 
+repair_apt_if_needed() {
+  command -v apt-get >/dev/null 2>&1 || return 0
+  export DEBIAN_FRONTEND=noninteractive
+  if command -v dpkg >/dev/null 2>&1; then
+    dpkg --configure -a || true
+  fi
+  apt-get -f install -y || true
+}
+
 install_packages() {
   [ "$#" -gt 0 ] || return 0
   if command -v apt-get >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
-    if command -v dpkg >/dev/null 2>&1; then
-      dpkg --configure -a || true
-    fi
-    apt-get -f install -y || true
+    repair_apt_if_needed
     apt-get update
     apt-get install -y --no-install-recommends "$@"
     return
@@ -197,105 +185,75 @@ install_packages() {
   fail "No supported package manager found. Install missing packages manually: $*"
 }
 
-ensure_node_runtime() {
-  local node_bin node_major
-  node_bin="${BLOG_DYNAMIC_NODE_BIN:-$(command -v node || true)}"
-  if [ -n "$node_bin" ]; then
-    node_major="$("$node_bin" -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || printf '0')"
-    if [ "$node_major" -ge 18 ]; then
-      NODE_BIN="$node_bin"
-      return
+ensure_docker() {
+  if [ "$INSTALL_DOCKER" != "1" ]; then
+    command -v docker >/dev/null 2>&1 || fail "Docker is not installed."
+    docker compose version >/dev/null 2>&1 || fail "Docker Compose plugin is not installed."
+    return
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    log "Installing Docker."
+    if command -v apt-get >/dev/null 2>&1; then
+      install_packages docker.io
+    elif command -v dnf >/dev/null 2>&1; then
+      install_packages docker
+    elif command -v yum >/dev/null 2>&1; then
+      install_packages docker
+    elif command -v pacman >/dev/null 2>&1; then
+      install_packages docker
     fi
   fi
 
-  if [ -x "${NODE_DIR}/bin/node" ]; then
-    node_major="$("${NODE_DIR}/bin/node" -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || printf '0')"
-    if [ "$node_major" -ge 18 ]; then
-      NODE_BIN="${NODE_DIR}/bin/node"
-      return
-    fi
-  fi
-
-  if command -v curl >/dev/null 2>&1; then
-    local arch versioned_dir temp_archive
-    arch="$(node_arch)"
-    versioned_dir="${NODE_DIR}/node-v${NODE_VERSION}-linux-${arch}"
-    temp_archive="/tmp/node-v${NODE_VERSION}-linux-${arch}.tar.xz"
-
-    if [ ! -x "${versioned_dir}/bin/node" ]; then
-      log "Installing portable Node.js ${NODE_VERSION} to ${NODE_DIR}."
-      install -d -m 0755 "$NODE_DIR"
-      if curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${arch}.tar.xz" -o "$temp_archive"; then
-        if tar -xJf "$temp_archive" -C "$NODE_DIR"; then
-          :
-        fi
-        rm -f "$temp_archive"
+  if ! docker compose version >/dev/null 2>&1; then
+    log "Installing Docker Compose plugin."
+    if command -v apt-get >/dev/null 2>&1; then
+      if apt-cache show docker-compose-plugin >/dev/null 2>&1; then
+        install_packages docker-compose-plugin
+      else
+        install_packages docker-compose
       fi
-    fi
-
-    if [ -x "${versioned_dir}/bin/node" ]; then
-      node_major="$("${versioned_dir}/bin/node" -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || printf '0')"
-      if [ "$node_major" -ge 18 ]; then
-        ln -sfn "$versioned_dir" "${NODE_DIR}/current"
-        NODE_BIN="${versioned_dir}/bin/node"
-        return
-      fi
-    fi
-  fi
-
-  if command -v apt-get >/dev/null 2>&1; then
-    apt-get install -y --no-install-recommends nodejs || true
-  elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y nodejs || true
-  elif command -v yum >/dev/null 2>&1; then
-    yum install -y nodejs || true
-  elif command -v pacman >/dev/null 2>&1; then
-    pacman -Sy --noconfirm nodejs npm || true
-  fi
-
-  node_bin="${BLOG_DYNAMIC_NODE_BIN:-$(command -v node || true)}"
-  if [ -n "$node_bin" ]; then
-    node_major="$("$node_bin" -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || printf '0')"
-    if [ "$node_major" -ge 18 ]; then
-      NODE_BIN="$node_bin"
-      return
+    elif command -v dnf >/dev/null 2>&1; then
+      install_packages docker-compose-plugin || true
+      docker compose version >/dev/null 2>&1 || install_packages docker-compose
+    elif command -v yum >/dev/null 2>&1; then
+      install_packages docker-compose-plugin || true
+      docker compose version >/dev/null 2>&1 || install_packages docker-compose
+    elif command -v pacman >/dev/null 2>&1; then
+      install_packages docker-compose
     fi
   fi
 
-  fail "Node.js 18+ is required. Install Node.js manually and rerun this script."
+  command -v docker >/dev/null 2>&1 || fail "Docker installation failed."
+  if ! docker compose version >/dev/null 2>&1; then
+    command -v docker-compose >/dev/null 2>&1 || fail "Docker Compose installation failed."
+  fi
 }
 
 ensure_prerequisites() {
-  command -v systemctl >/dev/null 2>&1 || fail "systemd is required for this bootstrap script."
-
   local packages=()
   command -v curl >/dev/null 2>&1 || packages+=("curl")
   command -v nginx >/dev/null 2>&1 || packages+=("nginx")
-
   if [ "${#packages[@]}" -gt 0 ]; then
     log "Installing missing packages: ${packages[*]}"
     install_packages "${packages[@]}"
   fi
-
-  ensure_node_runtime
+  ensure_docker
 }
 
-ensure_user_and_dirs() {
-  if ! id "$SERVICE_USER" >/dev/null 2>&1; then
-    local nologin_shell
-    nologin_shell="$(command -v nologin || printf '/usr/sbin/nologin')"
-    useradd --system --home-dir "$DATA_DIR" --shell "$nologin_shell" "$SERVICE_USER"
-  fi
-
+ensure_dirs() {
   install -d -m 0755 "$REPO_DIR"
   install -d -m 0755 "$REPO_DIR/server"
-  SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
-  install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$DATA_DIR"
+  install -d -m 0750 "$DATA_DIR"
 }
 
 install_source() {
   [ -f "$SOURCE_ROOT/server/index.mjs" ] || fail "Cannot find server/index.mjs beside this script."
+  [ -f "$SOURCE_ROOT/server/Dockerfile" ] || fail "Cannot find server/Dockerfile beside this script."
+  [ -f "$SOURCE_ROOT/server/docker-compose.yml" ] || fail "Cannot find server/docker-compose.yml beside this script."
   install -m 0644 "$SOURCE_ROOT/server/index.mjs" "$REPO_DIR/server/index.mjs"
+  install -m 0644 "$SOURCE_ROOT/server/Dockerfile" "$REPO_DIR/server/Dockerfile"
+  install -m 0644 "$SOURCE_ROOT/server/docker-compose.yml" "$REPO_DIR/server/docker-compose.yml"
 }
 
 write_environment_file() {
@@ -313,12 +271,13 @@ write_environment_file() {
   temp_file="$(mktemp)"
   {
     write_env_line BLOG_DYNAMIC_HOST "$BIND_HOST"
-    write_env_line BLOG_DYNAMIC_PORT "$BIND_PORT"
+    write_env_line BLOG_DYNAMIC_PORT "$CONTAINER_PORT"
     write_env_line BLOG_DYNAMIC_ALLOWED_ORIGINS "$ALLOWED_ORIGINS"
     write_env_line BLOG_DYNAMIC_ADMIN_TOKEN "$admin_token"
     write_env_line BLOG_DYNAMIC_POST_PASSWORD "$post_password"
     write_env_line BLOG_DYNAMIC_DIARY_PASSWORD "$diary_password"
     write_env_line BLOG_DYNAMIC_DATA_DIR "$DATA_DIR"
+    write_env_line BLOG_DYNAMIC_NODE_IMAGE "$NODE_IMAGE"
     write_env_line BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL"
   } >"$temp_file"
 
@@ -327,32 +286,19 @@ write_environment_file() {
   DYNAMIC_DOMAIN="$(strip_url_host "$PUBLIC_BASE_URL")"
 }
 
-write_systemd_unit() {
-  local unit_file="/etc/systemd/system/${SERVICE_NAME}.service"
-  cat >"$unit_file" <<EOF
-[Unit]
-Description=Blog Dynamic Service
-After=network.target
+compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+  docker-compose "$@"
+}
 
-[Service]
-Type=simple
-WorkingDirectory=${REPO_DIR}
-EnvironmentFile=${ENV_FILE}
-ExecStart=${NODE_BIN} ${REPO_DIR}/server/index.mjs
-Restart=on-failure
-RestartSec=5
-User=${SERVICE_USER}
-Group=${SERVICE_GROUP}
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=${DATA_DIR}
-
-[Install]
-WantedBy=multi-user.target
-EOF
-  chmod 0644 "$unit_file"
+start_container() {
+  systemctl enable --now docker >/dev/null 2>&1 || true
+  cd "$REPO_DIR/server"
+  export BLOG_DYNAMIC_NODE_IMAGE="$NODE_IMAGE"
+  compose_cmd up -d --build
 }
 
 write_nginx_config() {
@@ -379,7 +325,7 @@ server {
     client_max_body_size 1m;
 
     location / {
-        proxy_pass http://${BIND_HOST}:${BIND_PORT};
+        proxy_pass http://127.0.0.1:${BIND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -394,37 +340,26 @@ EOF
   fi
 
   nginx -t
-}
-
-restart_services() {
-  systemctl daemon-reload
-  if [ "$ENABLE_SERVICE" = "1" ]; then
-    systemctl enable --now "$SERVICE_NAME"
-    systemctl restart "$SERVICE_NAME"
-  fi
-  if [ "$CONFIGURE_NGINX" = "1" ]; then
-    systemctl enable --now nginx
-    systemctl reload nginx
-  fi
+  systemctl enable --now nginx >/dev/null 2>&1 || true
+  systemctl reload nginx >/dev/null 2>&1 || true
 }
 
 verify_service() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsS "http://${BIND_HOST}:${BIND_PORT}/health" >/dev/null
+    curl -fsS "http://127.0.0.1:${BIND_PORT}/health" >/dev/null
   fi
 }
 
 main() {
-  log "Preparing portable Linux deployment."
+  log "Preparing Docker deployment."
   ensure_prerequisites
   write_environment_file
-  ensure_user_and_dirs
+  ensure_dirs
   install_source
-  write_systemd_unit
+  start_container
   write_nginx_config
-  restart_services
   verify_service
-  log "Dynamic service is running locally on http://${BIND_HOST}:${BIND_PORT}"
+  log "Dynamic service container is running locally on http://127.0.0.1:${BIND_PORT}"
   log "Public API base should be ${PUBLIC_BASE_URL}"
   log "Set GitHub Actions Variable PUBLIC_DYNAMIC_API_BASE to ${PUBLIC_BASE_URL}"
   log "Environment file: ${ENV_FILE}"
