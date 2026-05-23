@@ -1,0 +1,22 @@
+---
+import LifeRecords from "@/components/LifeRecords.astro";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="生活记录" description="辣子鸡丁砂锅公开分享的生活记录。">
+  <section class="page-hero" data-collapsible-banner>
+    <div class="page-hero__media" aria-hidden="true">
+      <img src="/images/banner/about.png" alt="" loading="eager" decoding="async" />
+      <img src="/images/banner/about.png" alt="" loading="eager" decoding="async" />
+    </div>
+    <div class="container page-hero__inner">
+      <p class="page-hero__eyebrow">Life</p>
+      <h1>生活记录</h1>
+    </div>
+  </section>
+  <section class="page-block">
+    <div class="narrow">
+      <LifeRecords limit={24} />
+    </div>
+  </section>
+</BaseLayout>

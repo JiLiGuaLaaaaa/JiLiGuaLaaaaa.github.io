@@ -6,6 +6,8 @@
 
 当前公开博客只发布静态页面，不依赖 ECS、Docker、数据库、后端 API、WordPress 或 Ghost。
 
+本次新增的访问量、生活记录和写日记能力采用“静态博客 + ECS 独立动态服务”的方式：GitHub Pages 仍只托管静态页面，ECS 只运行单独的动态 API 服务。真实服务器地址、Token、密码、证书私钥和数据库内容不写入仓库。
+
 GitHub 仓库地址：`git@github.com:JiLiGuaLaaaaa/JiLiGuaLaaaaa.github.io.git`。
 
 ## 常用命令
@@ -15,11 +17,13 @@ pnpm install
 pnpm dev
 pnpm build
 pnpm preview
+node server/index.mjs
 ```
 
 - `pnpm dev`：本地开发预览。
 - `pnpm build`：检查并构建静态站点。
 - `pnpm preview`：预览构建后的站点。
+- `node server/index.mjs`：本地启动 ECS 动态服务骨架，真实部署时需要通过环境变量配置。
 
 ## 写文章
 
@@ -53,18 +57,53 @@ draft: false
 - 标签：按主题分类文章。
 - 归档：按年份整理文章。
 - 搜索：使用纯前端静态搜索数据，不连接后端。
+- 生活记录：`/life/` 页面会从 ECS 动态服务读取已发布的公开生活记录；如果未配置动态服务或 API 不可用，会显示降级提示，不影响静态博客浏览。
+- 访问量：页脚会在配置 `PUBLIC_DYNAMIC_API_BASE` 后显示全站访问量和当前页面访问量；统计只保存聚合计数。
 - RSS：`/rss.xml`，用于订阅文章更新。
 - sitemap：由 Astro sitemap 集成生成，帮助搜索引擎发现页面。
 - robots.txt：公开爬虫规则并声明 sitemap 地址。
 - RSS、Sitemap 和 SEO 入口在页面底部使用两组拼接复古徽章展示：`SEO + Sitemap` 指向 sitemap，`订阅 + RSS` 指向 RSS。
 - 评论：当前不显示评论区，也不显示评论占位；以后如果需要评论，应作为独立动态服务处理。
-- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏，不连接后端。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
+- 二次元小角色：当前使用 `public/images/video-mascot/` 中从用户视频处理得到的透明动作帧，支持鼠标视线方向切换、多角度方向帧、正面空闲眨眼、点击单次挥手、拖动位置和隐藏；移动端隐藏。连续短时间点击小人多次会打开写日记入口，入口地址由 `PUBLIC_DYNAMIC_ADMIN_URL` 或 `PUBLIC_DYNAMIC_API_BASE` 推导得到；这个入口不是安全边界，真正写入日记必须经过 ECS 动态服务的 Token 认证。组件首屏只预热基础朝向帧，其他角度、眨眼和挥手帧延后到浏览器空闲时预加载；播放前仍会预解码图片，并使用双图片层切换，下一帧确认可用后才替换当前帧，避免切帧时短暂空白闪烁。
 
 公开资料：
 
 - QQ：`1640203349`
 
 当前不新增分类字段，文章继续使用标签和归档组织。友链、朋友圈、动态、留言板等动态功能后续通过服务器或独立动态服务补充，不放进当前静态博客。
+
+## 动态服务
+
+动态服务源码放在 `server/`，设计说明放在 `docs/dynamic-service.md`，ECS 部署说明放在 `docs/ecs-deployment.md`。
+
+动态服务提供：
+
+- `GET /health`：健康检查。
+- `POST /api/stats/pageview` 和 `GET /api/stats`：访问量聚合统计。
+- `GET /api/life`：读取已发布的公开生活记录。
+- `POST /api/life`：创建生活记录，可保存为草稿或发布，必须认证。
+- `POST /api/diary` 和 `GET /api/diary`：写入和读取私密日记，必须认证。
+- `GET /admin/`：简单管理页面，用于写日记和生活记录。
+
+服务端环境变量示例在 `server/.env.example`。真实部署时需要在服务器上配置：
+
+```text
+BLOG_DYNAMIC_HOST=127.0.0.1
+BLOG_DYNAMIC_PORT=8787
+BLOG_DYNAMIC_ALLOWED_ORIGINS=https://blog.example.com
+BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
+BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
+BLOG_DYNAMIC_PUBLIC_BASE_URL=https://api.example.com
+```
+
+静态博客构建时可配置：
+
+```text
+PUBLIC_DYNAMIC_API_BASE=https://api.example.com
+PUBLIC_DYNAMIC_ADMIN_URL=https://api.example.com/admin/
+```
+
+如果暂时不配置这些变量，博客仍能作为纯静态站点正常访问，只是不显示访问量，生活记录页面不会读取服务器数据，连续点击小人也不会打开真实管理入口。
 
 图片资源放在 `public/images/`：
 
@@ -126,11 +165,19 @@ CNAME 的意思是把 `blog.20050619.xyz` 指向 GitHub Pages 的默认域名。
 
 不要把 Cloudflare API Token、账号密码或任何密钥写进仓库。
 
-## 为什么当前不使用 ECS
+## 为什么公开博客本体不使用 ECS
 
 公开博客是静态站点，GitHub Pages 已经可以托管 HTML、CSS、JS 和图片，不需要服务器长期运行。
 
-ECS 暂时只作为未来动态服务预留，例如评论、统计、表单、API 或私密日记。未来这些服务应使用独立子域名和访问控制，不应混入当前公开静态博客。
+ECS 只用于独立动态服务，例如访问量统计、生活记录和私密日记管理。公开博客本体仍不部署到 ECS，也不把后端代码混入 GitHub Pages 构建产物。
+
+推荐使用独立 API 子域名指向 ECS 动态服务，例如：
+
+```text
+https://api.example.com -> http://127.0.0.1:8787
+```
+
+真实 DNS、HTTPS 和反向代理配置需要在 Cloudflare、服务器或控制台中完成，并以本地配置和用户最终确认为准。
 
 ## 不要提交的文件
 
@@ -144,5 +191,7 @@ ECS 暂时只作为未来动态服务预留，例如评论、统计、表单、A
 - 数据库文件
 - 私密日记内容
 - 本地服务器登录信息
+- `server/.data/` 本地测试数据
+- `相关配置信息.txt`
 
 `.gitignore` 已经包含这些常见敏感文件规则，但仍需要在提交前人工确认没有泄露信息。

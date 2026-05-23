@@ -1,0 +1,21 @@
+[Unit]
+Description=Blog Dynamic Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/blog-project
+EnvironmentFile=/etc/blog-dynamic.env
+ExecStart=/usr/bin/node /opt/blog-project/server/index.mjs
+Restart=on-failure
+RestartSec=5
+User=blog
+Group=blog
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/blog-dynamic
+
+[Install]
+WantedBy=multi-user.target

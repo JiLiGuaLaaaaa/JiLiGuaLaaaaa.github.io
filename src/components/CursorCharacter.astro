@@ -1,9 +1,21 @@
+---
+const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/\/+$/, "");
+const dynamicAdminUrl =
+  import.meta.env.PUBLIC_DYNAMIC_ADMIN_URL || (dynamicApiBase ? `${dynamicApiBase}/admin/` : "");
+---
+
 <aside class="cursor-character" aria-label="站点小助手" data-cursor-character>
   <button class="cursor-character__hide" type="button" aria-label="隐藏小助手" data-character-hide>
     ×
   </button>
   <div class="cursor-character__bubble" data-character-bubble>今天也要写点什么吗？</div>
-  <button class="cursor-character__stage" type="button" aria-label="和小助手打招呼" data-character-stage>
+  <button
+    class="cursor-character__stage"
+    type="button"
+    aria-label="和小助手打招呼"
+    data-character-stage
+    data-diary-url={dynamicAdminUrl}
+  >
     <img
       class="cursor-character__frame is-visible"
       src="/images/video-mascot/look/center.png"
@@ -115,6 +127,9 @@
   let lastLookChangedAt = performance.now();
   let dragStart: { x: number; y: number; right: number; bottom: number } | null = null;
   let didDrag = false;
+  let diaryClickTimes: number[] = [];
+  const diaryClickWindow = 4200;
+  const diaryClickThreshold = 5;
 
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -297,6 +312,25 @@
     void playFrames([...waveFrames, lookFrames.center], "wave", 92, "center");
   };
 
+  const trackDiaryEntryClick = () => {
+    const now = Date.now();
+    diaryClickTimes = [...diaryClickTimes.filter((time) => now - time <= diaryClickWindow), now];
+    if (diaryClickTimes.length < diaryClickThreshold) return false;
+
+    diaryClickTimes = [];
+    const diaryUrl = stage?.dataset.diaryUrl;
+    if (!diaryUrl) {
+      say("写日记入口还没连上服务器。");
+      return true;
+    }
+
+    say("打开写日记入口啦。");
+    window.setTimeout(() => {
+      window.open(diaryUrl, "_blank", "noopener,noreferrer");
+    }, 180);
+    return true;
+  };
+
   frameLayers.forEach((layer) => {
     layer.dataset.currentSrc = layer.getAttribute("src") ?? "";
     layer.addEventListener("load", () => {
@@ -312,6 +346,7 @@
 
   stage?.addEventListener("click", () => {
     if (didDrag) return;
+    if (trackDiaryEntryClick()) return;
     playWave();
   });
   hideButton?.addEventListener("click", () => setHidden(true));

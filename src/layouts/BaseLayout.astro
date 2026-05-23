@@ -16,6 +16,7 @@ const {
 
 const pageTitle = title === siteConfig.name ? title : `${title} | ${siteConfig.name}`;
 const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
+const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/\/+$/, "");
 ---
 
 <!doctype html>
@@ -54,6 +55,7 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
         </a>
         <nav class="nav" aria-label="主导航">
           <a href="/blog/">博客</a>
+          <a href="/life/">生活</a>
           <a href="/tags/">标签</a>
           <a href="/archive/">归档</a>
           <a href="/search/">搜索</a>
@@ -68,6 +70,16 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
     <footer class="site-footer">
       <div class="container site-footer__inner">
         <p>© {new Date().getFullYear()} {siteConfig.author}</p>
+        <div
+          class="site-stats"
+          data-site-stats
+          data-api-base={dynamicApiBase}
+          hidden
+          aria-label="访问量统计"
+        >
+          <span>总访问 <strong data-site-stats-total>--</strong></span>
+          <span>本页 <strong data-site-stats-page>--</strong></span>
+        </div>
         <nav class="feed-badges" aria-label="站点订阅和索引">
           <a class="feed-badge-group" href="/sitemap-index.xml">
             <span class="feed-badge feed-badge--seo">
@@ -130,6 +142,34 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
       window.addEventListener("scroll", updateScrollLayout, { passive: true });
       window.addEventListener("resize", updateScrollLayout, { passive: true });
       window.addEventListener("pageshow", updateScrollLayout);
+
+      const statsRoot = document.querySelector("[data-site-stats]");
+      const statsApiBase = statsRoot instanceof HTMLElement ? statsRoot.dataset.apiBase : "";
+      const statsTotal = document.querySelector("[data-site-stats-total]");
+      const statsPage = document.querySelector("[data-site-stats-page]");
+
+      const updateVisitStats = async () => {
+        if (!statsRoot || !statsApiBase || !statsTotal || !statsPage) return;
+        try {
+          const path = window.location.pathname || "/";
+          const response = await fetch(`${statsApiBase}/api/stats/pageview`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path }),
+            keepalive: true
+          });
+          if (!response.ok) return;
+          const stats = await response.json();
+          if (!stats?.ok) return;
+          statsTotal.textContent = Number(stats.total || 0).toLocaleString("zh-CN");
+          statsPage.textContent = Number(stats.page || 0).toLocaleString("zh-CN");
+          statsRoot.removeAttribute("hidden");
+        } catch {
+          statsRoot.setAttribute("hidden", "");
+        }
+      };
+
+      void updateVisitStats();
     </script>
     <slot name="body-end" />
   </body>
@@ -211,6 +251,24 @@ const canonical = new URL(Astro.url.pathname, siteConfig.url).toString();
 
   .site-footer p {
     margin: 0;
+  }
+
+  .site-stats {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .site-stats[hidden] {
+    display: none;
+  }
+
+  .site-stats strong {
+    color: var(--accent-strong);
+    font-weight: 900;
   }
 
   .feed-badges {
