@@ -43,6 +43,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html.has-modal-open {
+  overflow: hidden;
+}
+
 body {
   min-height: 100%;
   margin: 0;

@@ -13,7 +13,7 @@ ECS 动态服务
   -> 127.0.0.1:8787
 ```
 
-静态博客仍由 GitHub Actions 发布到 GitHub Pages。ECS 只运行 `server/index.mjs`，负责访问量统计、公开生活记录和私密日记管理 API。
+静态博客仍由 GitHub Actions 发布到 GitHub Pages。ECS 只运行 `server/index.mjs`，负责访问量统计、公开动态发布和私密日记管理 API。
 
 ## DNS
 
@@ -35,7 +35,7 @@ api.example.com  A  <ECS_PUBLIC_IP>
 /etc/blog-dynamic.env    # 服务环境变量
 ```
 
-动态数据目录必须在仓库外，避免日记、生活记录草稿、访问量数据被提交。
+动态数据目录必须在仓库外，避免日记、动态草稿或兼容数据、访问量数据被提交。
 
 ## 环境变量
 
@@ -46,6 +46,8 @@ BLOG_DYNAMIC_HOST=127.0.0.1
 BLOG_DYNAMIC_PORT=8787
 BLOG_DYNAMIC_ALLOWED_ORIGINS=https://blog.example.com
 BLOG_DYNAMIC_ADMIN_TOKEN=replace-with-a-long-random-token
+BLOG_DYNAMIC_POST_PASSWORD=replace-with-a-publish-password
+BLOG_DYNAMIC_DIARY_PASSWORD=replace-with-a-diary-password
 BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://api.example.com
 ```
@@ -91,10 +93,9 @@ GitHub Pages 构建时需要配置公开环境变量：
 
 ```text
 PUBLIC_DYNAMIC_API_BASE=https://api.example.com
-PUBLIC_DYNAMIC_ADMIN_URL=https://api.example.com/admin/
 ```
 
-如果暂时不配置这些变量，静态博客仍可正常浏览，只是不显示访问量，生活记录页面会提示未连接动态服务，连续点击小人不会打开真实写日记入口。
+如果暂时不配置这些变量，静态博客仍可正常浏览，只是不显示访问量，动态页面会提示未连接动态服务，连续点击小人不会打开真实写日记入口。
 
 ## 验证
 
@@ -103,10 +104,11 @@ PUBLIC_DYNAMIC_ADMIN_URL=https://api.example.com/admin/
 ```text
 GET https://api.example.com/health
 GET https://api.example.com/api/stats?path=/blog/
+GET https://api.example.com/api/dynamics?limit=6
 GET https://api.example.com/api/life?limit=6
 ```
 
-管理接口必须带：
+管理 Token 可用于受保护接口，网页端动态发布和日记入口分别使用发布密码、日记密码：
 
 ```text
 Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>

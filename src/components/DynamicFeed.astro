@@ -1,0 +1,335 @@
+---
+interface Props {
+  limit?: number;
+}
+
+const { limit = 12 } = Astro.props;
+const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/\/+$/, "");
+---
+
+<section
+  class="dynamic-feed vh-panel"
+  data-dynamic-feed
+  data-api-base={dynamicApiBase}
+  data-limit={limit}
+  aria-labelledby="dynamic-feed-title"
+>
+  <div class="dynamic-feed__header">
+    <p class="dynamic-feed__eyebrow">Dynamic</p>
+    <h2 id="dynamic-feed-title">动态</h2>
+  </div>
+  <form class="dynamic-composer" data-dynamic-form autocomplete="off">
+    <label class="dynamic-composer__content">
+      <span>说点什么</span>
+      <textarea
+        name="content"
+        rows="4"
+        maxlength="1000"
+        placeholder="今天发生了什么？"
+        data-dynamic-content
+      ></textarea>
+    </label>
+    <div class="dynamic-composer__bar">
+      <label>
+        <span>心情</span>
+        <input name="mood" maxlength="24" placeholder="可选" data-dynamic-mood />
+      </label>
+      <label>
+        <span>发布密码</span>
+        <input name="password" type="password" autocomplete="off" data-dynamic-password />
+      </label>
+      <button type="submit" data-dynamic-submit>发布</button>
+    </div>
+    <p class="dynamic-composer__status" data-dynamic-form-status></p>
+  </form>
+  <div class="dynamic-feed__status" data-dynamic-feed-status>正在读取公开动态。</div>
+  <div class="dynamic-feed__list" data-dynamic-feed-list hidden></div>
+</section>
+
+<script>
+  type DynamicRecord = {
+    id?: string;
+    title?: string;
+    content?: string;
+    mood?: string;
+    createdAt?: string;
+  };
+
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
+  };
+
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (char) => {
+      const map: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      };
+      return map[char] ?? char;
+    });
+
+  const renderDynamicFeed = async (root: HTMLElement) => {
+    const apiBase = root.dataset.apiBase;
+    const limit = Number.parseInt(root.dataset.limit || "12", 10) || 12;
+    const status = root.querySelector<HTMLElement>("[data-dynamic-feed-status]");
+    const list = root.querySelector<HTMLElement>("[data-dynamic-feed-list]");
+    if (!status || !list) return;
+
+    if (!apiBase) {
+      status.textContent = "动态暂未连接动态服务。";
+      return;
+    }
+
+    try {
+      let response = await fetch(`${apiBase}/api/dynamics?limit=${encodeURIComponent(String(limit))}`);
+      if (response.status === 404) {
+        response = await fetch(`${apiBase}/api/life?limit=${encodeURIComponent(String(limit))}`);
+      }
+      if (!response.ok) throw new Error("Request failed");
+      const payload = await response.json();
+      const records: DynamicRecord[] = Array.isArray(payload?.records) ? payload.records : [];
+      if (records.length === 0) {
+        list.hidden = true;
+        status.hidden = false;
+        status.textContent = "暂时还没有公开动态。";
+        return;
+      }
+
+      list.innerHTML = records
+        .map((record) => {
+          const title = escapeHtml(String(record.title || "动态"));
+          const content = escapeHtml(String(record.content || ""));
+          const mood = escapeHtml(String(record.mood || ""));
+          const createdAt = formatDate(String(record.createdAt || ""));
+          return `<article class="dynamic-item">
+            <div class="dynamic-item__meta">
+              ${createdAt ? `<time datetime="${escapeHtml(String(record.createdAt))}">${createdAt}</time>` : ""}
+              ${mood ? `<span>${mood}</span>` : ""}
+            </div>
+            <h3>${title}</h3>
+            <p>${content}</p>
+          </article>`;
+        })
+        .join("");
+      status.hidden = true;
+      list.hidden = false;
+    } catch {
+      list.hidden = true;
+      status.hidden = false;
+      status.textContent = "动态暂时不可用。";
+    }
+  };
+
+  const setupDynamicComposer = (root: HTMLElement) => {
+    const apiBase = root.dataset.apiBase;
+    const form = root.querySelector<HTMLFormElement>("[data-dynamic-form]");
+    const formStatus = root.querySelector<HTMLElement>("[data-dynamic-form-status]");
+    const submitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-submit]");
+    const contentInput = root.querySelector<HTMLTextAreaElement>("[data-dynamic-content]");
+    const moodInput = root.querySelector<HTMLInputElement>("[data-dynamic-mood]");
+    const passwordInput = root.querySelector<HTMLInputElement>("[data-dynamic-password]");
+    if (!form || !formStatus || !submitButton || !contentInput || !moodInput || !passwordInput) return;
+
+    if (!apiBase) {
+      submitButton.disabled = true;
+      formStatus.textContent = "动态发布还没有接上动态服务。";
+      return;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = contentInput.value.trim();
+      const mood = moodInput.value.trim();
+      const password = passwordInput.value;
+      if (!content) {
+        formStatus.textContent = "先写一点内容。";
+        contentInput.focus();
+        return;
+      }
+      if (!password) {
+        formStatus.textContent = "请输入发布密码。";
+        passwordInput.focus();
+        return;
+      }
+
+      submitButton.disabled = true;
+      formStatus.textContent = "正在发布。";
+      try {
+        const response = await fetch(`${apiBase}/api/dynamics`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, mood, password })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || "动态发布失败。");
+        }
+        contentInput.value = "";
+        moodInput.value = "";
+        passwordInput.value = "";
+        formStatus.textContent = "已发布。";
+        await renderDynamicFeed(root);
+      } catch (error) {
+        formStatus.textContent = error instanceof Error ? error.message : "动态发布失败。";
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-dynamic-feed]").forEach((root) => {
+    setupDynamicComposer(root);
+    void renderDynamicFeed(root);
+  });
+</script>
+
+<style>
+  .dynamic-feed {
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+  }
+
+  .dynamic-feed__header {
+    display: grid;
+    gap: 4px;
+  }
+
+  .dynamic-feed__eyebrow {
+    margin: 0;
+    color: var(--accent-strong);
+    font-size: 0.82rem;
+    font-weight: 900;
+  }
+
+  .dynamic-feed h2 {
+    margin: 0;
+    font-size: 1.45rem;
+    line-height: 1.25;
+  }
+
+  .dynamic-feed__status {
+    color: var(--muted);
+  }
+
+  .dynamic-composer {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 10%);
+  }
+
+  .dynamic-composer label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 800;
+  }
+
+  .dynamic-composer textarea,
+  .dynamic-composer input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface), transparent 4%);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .dynamic-composer textarea {
+    min-height: 112px;
+    padding: 12px;
+    resize: vertical;
+  }
+
+  .dynamic-composer input {
+    height: 40px;
+    padding: 0 10px;
+  }
+
+  .dynamic-composer__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .dynamic-composer button {
+    min-width: 82px;
+    height: 40px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 900;
+  }
+
+  .dynamic-composer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+  }
+
+  .dynamic-composer__status {
+    min-height: 1.4em;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .dynamic-feed__list {
+    display: grid;
+    gap: 14px;
+  }
+
+  .dynamic-item {
+    display: grid;
+    gap: 8px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 12%);
+  }
+
+  .dynamic-item__meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+
+  .dynamic-item h3 {
+    margin: 0;
+    font-size: 1.08rem;
+    line-height: 1.35;
+  }
+
+  .dynamic-item p {
+    margin: 0;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+
+  @media (max-width: 720px) {
+    .dynamic-composer__bar {
+      grid-template-columns: 1fr;
+    }
+
+    .dynamic-composer button {
+      width: 100%;
+    }
+  }
+</style>

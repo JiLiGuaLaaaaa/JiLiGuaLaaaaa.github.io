@@ -1,22 +1,23 @@
 ---
-import LifeRecords from "@/components/LifeRecords.astro";
-import BaseLayout from "@/layouts/BaseLayout.astro";
+import { siteConfig } from "@/config/site";
+
+const target = "/dynamic/";
+const canonical = new URL(target, siteConfig.url).toString();
 ---
 
-<BaseLayout title="生活记录" description="辣子鸡丁砂锅公开分享的生活记录。">
-  <section class="page-hero" data-collapsible-banner>
-    <div class="page-hero__media" aria-hidden="true">
-      <img src="/images/banner/about.png" alt="" loading="eager" decoding="async" />
-      <img src="/images/banner/about.png" alt="" loading="eager" decoding="async" />
-    </div>
-    <div class="container page-hero__inner">
-      <p class="page-hero__eyebrow">Life</p>
-      <h1>生活记录</h1>
-    </div>
-  </section>
-  <section class="page-block">
-    <div class="narrow">
-      <LifeRecords limit={24} />
-    </div>
-  </section>
-</BaseLayout>
+<!doctype html>
+<html lang={siteConfig.language}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={canonical} />
+    <title>动态已迁移 | {siteConfig.name}</title>
+    <script is:inline>
+      window.location.replace("/dynamic/");
+    </script>
+  </head>
+  <body>
+    <a href="/dynamic/">进入动态页</a>
+  </body>
+</html>

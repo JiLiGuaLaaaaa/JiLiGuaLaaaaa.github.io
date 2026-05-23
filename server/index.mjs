@@ -2,13 +2,15 @@ import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const host = process.env.BLOG_DYNAMIC_HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.BLOG_DYNAMIC_PORT || "8787", 10);
 const publicBaseUrl = process.env.BLOG_DYNAMIC_PUBLIC_BASE_URL || "";
 const adminToken = process.env.BLOG_DYNAMIC_ADMIN_TOKEN || "";
+const dynamicPostPassword = process.env.BLOG_DYNAMIC_POST_PASSWORD || "";
+const diaryPassword = process.env.BLOG_DYNAMIC_DIARY_PASSWORD || "";
 const dataDir = resolve(process.env.BLOG_DYNAMIC_DATA_DIR || join(__dirname, ".data"));
 const allowedOrigins = new Set(
   (process.env.BLOG_DYNAMIC_ALLOWED_ORIGINS || "http://localhost:4321")
@@ -18,9 +20,12 @@ const allowedOrigins = new Set(
 );
 
 const maxBodyBytes = 64 * 1024;
+const diarySessionTtlMs = 30 * 60 * 1000;
+const diarySessions = new Map();
 
 const files = {
   stats: join(dataDir, "stats.json"),
+  dynamics: join(dataDir, "dynamic-records.json"),
   life: join(dataDir, "life-records.json"),
   diary: join(dataDir, "diary-entries.json")
 };
@@ -43,6 +48,9 @@ const defaultStats = () => ({
 
 const isPlaceholderToken = (value) =>
   !value || value === "replace-with-a-long-random-token" || value.length < 24;
+
+const isPlaceholderPassword = (value) =>
+  !value || value.startsWith("replace-with-") || value.length < 8;
 
 const nowIso = () => new Date().toISOString();
 
@@ -82,16 +90,51 @@ const isAuthorized = (request) => {
   return Boolean(match && safeEqual(match[1], adminToken));
 };
 
-const requireAuth = (request, response) => {
-  if (isPlaceholderToken(adminToken)) {
-    sendError(response, 503, "Admin token is not configured.");
+const requirePassword = (response, configuredPassword, suppliedPassword, name) => {
+  if (isPlaceholderPassword(configuredPassword)) {
+    sendError(response, 503, `${name} password is not configured.`);
     return false;
   }
-  if (!isAuthorized(request)) {
-    sendError(response, 401, "Unauthorized.");
+  if (!safeEqual(String(suppliedPassword || ""), configuredPassword)) {
+    sendError(response, 401, "Password is incorrect.");
     return false;
   }
   return true;
+};
+
+const cleanupDiarySessions = () => {
+  const now = Date.now();
+  for (const [token, expiresAt] of diarySessions.entries()) {
+    if (expiresAt <= now) diarySessions.delete(token);
+  }
+};
+
+const createDiarySession = () => {
+  cleanupDiarySessions();
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = Date.now() + diarySessionTtlMs;
+  diarySessions.set(token, expiresAt);
+  return { token, expiresAt };
+};
+
+const isDiarySessionAuthorized = (request) => {
+  cleanupDiarySessions();
+  const header = request.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return false;
+  const token = match[1];
+  const expiresAt = diarySessions.get(token);
+  if (!expiresAt || expiresAt <= Date.now()) {
+    diarySessions.delete(token);
+    return false;
+  }
+  return true;
+};
+
+const requireDiaryAuth = (request, response) => {
+  if (isAuthorized(request) || isDiarySessionAuthorized(request)) return true;
+  sendError(response, 401, "Unauthorized.");
+  return false;
 };
 
 const ensureDataDir = async () => {
@@ -182,6 +225,15 @@ const publicLifeRecord = (record) => ({
   updatedAt: record.updatedAt
 });
 
+const publicDynamicRecord = (record) => ({
+  id: record.id,
+  title: record.title || "",
+  content: record.content,
+  mood: record.mood,
+  createdAt: record.createdAt,
+  updatedAt: record.updatedAt
+});
+
 const handleStatsRead = async (response, url) => {
   const stats = await readJsonFile(files.stats, defaultStats);
   const path = normalizePath(url.searchParams.get("path"));
@@ -214,6 +266,60 @@ const handleStatsWrite = async (request, response) => {
 
 const handleLifeRead = async (response, url) => {
   const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
+  const records = await readPublicDynamicRecords(limit);
+  sendJson(response, 200, { ok: true, records });
+};
+
+const readPublicDynamicRecords = async (limit) => {
+  const [dynamicRecords, legacyLifeRecords] = await Promise.all([
+    readJsonFile(files.dynamics, () => []),
+    readJsonFile(files.life, () => [])
+  ]);
+  return [...dynamicRecords, ...legacyLifeRecords]
+    .filter((record) => record.status === "published")
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, limit)
+    .map(publicDynamicRecord);
+};
+
+const handleDynamicRead = async (response, url) => {
+  const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
+  const records = await readPublicDynamicRecords(limit);
+  sendJson(response, 200, { ok: true, records });
+};
+
+const handleDynamicWrite = async (request, response) => {
+  const body = await readBody(request);
+  if (!isAuthorized(request)) {
+    if (!requirePassword(response, dynamicPostPassword, body.password, "Dynamic publish")) return;
+  }
+
+  const title = cleanText(body.title, 80);
+  const content = cleanMultiline(body.content, 1000);
+  const mood = cleanText(body.mood, 24);
+
+  if (!content) {
+    sendError(response, 400, "Content is required.");
+    return;
+  }
+
+  const records = await readJsonFile(files.dynamics, () => []);
+  const record = {
+    id: makeId(),
+    title,
+    content,
+    mood,
+    status: "published",
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  };
+  records.unshift(record);
+  await writeJsonFile(files.dynamics, records);
+  sendJson(response, 201, { ok: true, record: publicDynamicRecord(record) });
+};
+
+const handleLegacyLifeRead = async (response, url) => {
+  const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
   const records = await readJsonFile(files.life, () => []);
   const published = records
     .filter((record) => record.status === "published")
@@ -224,35 +330,11 @@ const handleLifeRead = async (response, url) => {
 };
 
 const handleLifeWrite = async (request, response) => {
-  if (!requireAuth(request, response)) return;
-  const body = await readBody(request);
-  const title = cleanText(body.title, 80);
-  const content = cleanMultiline(body.content, 5000);
-  const mood = cleanText(body.mood, 24);
-  const status = body.status === "published" ? "published" : "draft";
-
-  if (!title || !content) {
-    sendError(response, 400, "Title and content are required.");
-    return;
-  }
-
-  const records = await readJsonFile(files.life, () => []);
-  const record = {
-    id: makeId(),
-    title,
-    content,
-    mood,
-    status,
-    createdAt: nowIso(),
-    updatedAt: nowIso()
-  };
-  records.unshift(record);
-  await writeJsonFile(files.life, records);
-  sendJson(response, 201, { ok: true, record: status === "published" ? publicLifeRecord(record) : { id: record.id, status } });
+  await handleDynamicWrite(request, response);
 };
 
 const handleDiaryRead = async (request, response) => {
-  if (!requireAuth(request, response)) return;
+  if (!requireDiaryAuth(request, response)) return;
   const entries = await readJsonFile(files.diary, () => []);
   sendJson(response, 200, {
     ok: true,
@@ -266,8 +348,19 @@ const handleDiaryRead = async (request, response) => {
   });
 };
 
+const handleDiarySessionCreate = async (request, response) => {
+  const body = await readBody(request);
+  if (!requirePassword(response, diaryPassword, body.password, "Diary")) return;
+  const session = createDiarySession();
+  sendJson(response, 200, {
+    ok: true,
+    token: session.token,
+    expiresAt: new Date(session.expiresAt).toISOString()
+  });
+};
+
 const handleDiaryWrite = async (request, response) => {
-  if (!requireAuth(request, response)) return;
+  if (!requireDiaryAuth(request, response)) return;
   const body = await readBody(request);
   const title = cleanText(body.title, 80) || "未命名日记";
   const content = cleanMultiline(body.content, 10000);
@@ -319,7 +412,7 @@ const adminHtml = () => `<!doctype html>
       <button data-action="diary">保存私密日记</button>
     </section>
     <section>
-      <h2>生活记录</h2>
+      <h2>公开动态</h2>
       <label>标题 <input id="life-title" /></label>
       <label>心情 <input id="life-mood" /></label>
       <label>状态
@@ -329,7 +422,7 @@ const adminHtml = () => `<!doctype html>
         </select>
       </label>
       <label>内容 <textarea id="life-content"></textarea></label>
-      <button data-action="life">保存生活记录</button>
+      <button data-action="life">保存动态</button>
     </section>
     <output id="result"></output>
     <script>
@@ -369,7 +462,7 @@ const adminHtml = () => `<!doctype html>
             status: document.querySelector("#life-status").value,
             content: document.querySelector("#life-content").value
           });
-          result.textContent = "生活记录已保存。";
+          result.textContent = "动态已保存。";
         } catch (error) {
           result.textContent = error.message;
         }
@@ -410,12 +503,28 @@ const handleRequest = async (request, response) => {
       await handleLifeRead(response, url);
       return;
     }
+    if (request.method === "GET" && url.pathname === "/api/life/legacy") {
+      await handleLegacyLifeRead(response, url);
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/dynamics") {
+      await handleDynamicRead(response, url);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/dynamics") {
+      await handleDynamicWrite(request, response);
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/life") {
       await handleLifeWrite(request, response);
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/diary") {
       await handleDiaryRead(request, response);
+      return;
+    }
+    if (request.method === "POST" && url.pathname === "/api/diary/session") {
+      await handleDiarySessionCreate(request, response);
       return;
     }
     if (request.method === "POST" && url.pathname === "/api/diary") {
