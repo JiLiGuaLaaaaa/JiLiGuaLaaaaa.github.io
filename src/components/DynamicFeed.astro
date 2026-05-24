@@ -295,6 +295,12 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     let filterTimer = 0;
     let requestToken = 0;
 
+    const scrollEditorIntoView = () => {
+      window.setTimeout(() => {
+        form.scrollIntoView({ block: "start", behavior: "smooth" });
+      }, 0);
+    };
+
     const setModalOpen = (modal: HTMLElement, open: boolean) => {
       modal.hidden = !open;
       const hasOpenModal = !passwordModal.hidden || !managerModal.hidden || open;
@@ -488,6 +494,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       formStatus.textContent = "";
       renderExistingPreview();
       renderPendingPreview();
+      scrollEditorIntoView();
       contentInput.focus();
     }
 
@@ -579,6 +586,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         setDynamicManageMode(false);
         setModalOpen(managerModal, true);
         renderManagerList();
+        scrollEditorIntoView();
       } catch (error) {
         passwordStatus.textContent = error instanceof Error ? error.message : "密码确认失败。";
       } finally {
@@ -655,6 +663,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     newButton.addEventListener("click", () => {
       resetEditor();
+      scrollEditorIntoView();
       contentInput.focus();
     });
 
@@ -919,9 +928,21 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     position: fixed;
     inset: 0;
     z-index: 70;
+    padding: 20px;
+  }
+
+  .dynamic-password-modal {
     display: grid;
     place-items: center;
-    padding: 20px;
+  }
+
+  .dynamic-manager-modal {
+    display: block;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding: 20px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .dynamic-password-modal[hidden],
@@ -931,7 +952,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-password-modal__backdrop,
   .dynamic-manager-modal__backdrop {
-    position: absolute;
+    position: fixed;
     inset: 0;
     background: rgba(31, 20, 30, 0.46);
     backdrop-filter: blur(8px);
@@ -951,11 +972,9 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-manager-modal__panel {
     display: grid;
-    grid-template-rows: auto auto minmax(0, 1fr);
     width: min(100%, 760px);
-    max-height: min(90vh, 820px);
-    overflow: auto;
-    overscroll-behavior: contain;
+    margin: min(5vh, 36px) auto;
+    overflow: visible;
     gap: 16px;
   }
 
@@ -1232,8 +1251,6 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .dynamic-manager__list {
     display: grid;
     min-height: 0;
-    max-height: min(34vh, 300px);
-    overflow: auto;
     gap: 8px;
     padding-top: 4px;
     padding-right: 4px;

@@ -272,3 +272,12 @@
 - [x] 更新 README，写清动态和日记管理模式与展示修复后的行为
 - [x] 运行本地可用检查：TypeScript/Astro 检查或构建、`git diff --check`、敏感信息扫描
 - [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报
+
+## 本次动态编辑弹窗滚动修复
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和动态组件源码，并定位用户提到的 `演示视频4.mp4`
+- [x] 更新 `requirements.md` 和 `plan.md`，记录动态管理 / 编辑弹窗必须能上下滚动的修复要求
+- [x] 修复 `DynamicFeed.astro` 中动态管理 / 编辑弹窗的滚动容器和编辑定位逻辑
+- [x] 更新 README，补充动态管理弹窗滚动和编辑定位行为
+- [x] 运行本地可用检查：Astro/TypeScript 构建或可替代检查、`git diff --check`、敏感信息扫描
+- [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报
