@@ -8,6 +8,10 @@
 
 2. 环境变量文件：
    /etc/blog-dynamic.env
+   /etc/blog-dynamic.docker.env
+
+   平时修改密码和配置，只改 /etc/blog-dynamic.env。
+   /etc/blog-dynamic.docker.env 是脚本自动生成的 Docker 原生命令专用文件，用来避免 docker run --env-file 把引号带进环境变量。
 
 3. 数据目录：
    /var/lib/blog-dynamic
@@ -20,25 +24,32 @@
 
 2. 查看动态服务日志：
    cd /opt/blog-project/server
-   sudo docker compose logs -f
+   sudo docker-compose logs -f
 
 3. 重启动态服务：
    cd /opt/blog-project/server
-   sudo docker compose restart
+   sudo docker-compose restart
 
 4. 停止动态服务：
    cd /opt/blog-project/server
-   sudo docker compose stop
+   sudo docker-compose stop
 
 5. 启动动态服务：
    cd /opt/blog-project/server
-   sudo docker compose up -d
+   sudo docker-compose up -d
 
 三、更新服务
 如果改了 server 里的代码、动态图片处理、动态/日记编辑删除接口或 Docker 配置：
 
 cd /opt/blog-project/server
-sudo docker compose up -d --build
+sudo bash /opt/blog-project/server/bootstrap-docker.sh
+
+说明：这台服务器当前可用的是旧版 docker-compose，不是新版 docker compose 插件。
+直接执行 sudo docker compose up -d --build 会报 unknown shorthand flag: 'd' in -d。
+旧版 docker-compose 在新版 Docker 上重建容器时还可能遇到 ContainerConfig 兼容错误。
+所以更新服务时优先运行 bootstrap-docker.sh，让脚本自动构建镜像并在必要时只重建 blog-dynamic 容器。
+不要删除 /var/lib/blog-dynamic，这里存放动态、日记和上传图片数据。
+如果脚本走 docker run 兜底路径，会自动生成 /etc/blog-dynamic.docker.env，不需要手动编辑它。
 
 如果只改了 Astro 前端页面，不需要重建服务器容器，需要重新触发 GitHub Actions 发布静态站。
 
@@ -76,7 +87,7 @@ BLOG_DYNAMIC_ADMIN_TOKEN
 
 改完后重启：
 cd /opt/blog-project/server
-sudo docker compose restart
+sudo docker-compose restart
 
 六、查看容器内部
 sudo docker exec -it blog-dynamic sh
@@ -95,7 +106,7 @@ sudo docker system prune -a --volumes
 九、日常最常用的几个命令
 cd /opt/blog-project/server
 sudo docker ps
-sudo docker compose logs -f
-sudo docker compose restart
-sudo docker compose up -d --build
+sudo docker-compose logs -f
+sudo docker-compose restart
+sudo bash /opt/blog-project/server/bootstrap-docker.sh
 curl http://127.0.0.1:8787/health

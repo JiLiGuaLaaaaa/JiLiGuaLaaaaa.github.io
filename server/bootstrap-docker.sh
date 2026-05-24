@@ -26,6 +26,7 @@ SERVICE_NAME="${BLOG_DYNAMIC_SERVICE_NAME:-blog-dynamic}"
 REPO_DIR="${BLOG_DYNAMIC_REPO_DIR:-/opt/blog-project}"
 DATA_DIR="${BLOG_DYNAMIC_DATA_DIR:-/var/lib/blog-dynamic}"
 ENV_FILE="${BLOG_DYNAMIC_ENV_FILE:-/etc/blog-dynamic.env}"
+DOCKER_ENV_FILE="${BLOG_DYNAMIC_DOCKER_ENV_FILE:-/etc/blog-dynamic.docker.env}"
 BIND_HOST="${BLOG_DYNAMIC_HOST:-0.0.0.0}"
 BIND_PORT="${BLOG_DYNAMIC_PORT:-8787}"
 CONTAINER_PORT="${BLOG_DYNAMIC_CONTAINER_PORT:-8787}"
@@ -165,6 +166,17 @@ write_env_line() {
   value="${value//\\/\\\\}"
   value="${value//\"/\\\"}"
   printf '%s="%s"\n' "$key" "$value"
+}
+
+write_docker_env_line() {
+  local key="$1"
+  local value="$2"
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      fail "$key contains a newline and cannot be written to a Docker env file."
+      ;;
+  esac
+  printf '%s=%s\n' "$key" "$value"
 }
 
 repair_apt_if_needed() {
@@ -418,12 +430,13 @@ write_environment_file() {
   CLOUDFLARED_ENABLE="$(env_or_existing_or_default BLOG_DYNAMIC_CLOUDFLARED_ENABLE "$CLOUDFLARED_ENABLE")"
   CLOUDFLARED_TOKEN_FILE="$(env_or_existing_or_default BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE "$CLOUDFLARED_TOKEN_FILE")"
 
-  local admin_token post_password diary_password temp_file
+  local admin_token post_password diary_password temp_file docker_temp_file
   admin_token="$(secret_or_existing_or_generate BLOG_DYNAMIC_ADMIN_TOKEN)"
   post_password="$(secret_or_existing_or_prompt BLOG_DYNAMIC_POST_PASSWORD "Dynamic publish password")"
   diary_password="$(secret_or_existing_or_prompt BLOG_DYNAMIC_DIARY_PASSWORD "Diary password")"
 
   temp_file="$(mktemp)"
+  docker_temp_file="$(mktemp)"
   {
     write_env_line BLOG_DYNAMIC_HOST "$BIND_HOST"
     write_env_line BLOG_DYNAMIC_PORT "$CONTAINER_PORT"
@@ -450,8 +463,21 @@ write_environment_file() {
     write_env_line BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE "$CLOUDFLARED_TOKEN_FILE"
   } >"$temp_file"
 
+  {
+    write_docker_env_line BLOG_DYNAMIC_HOST "0.0.0.0"
+    write_docker_env_line BLOG_DYNAMIC_PORT "$CONTAINER_PORT"
+    write_docker_env_line BLOG_DYNAMIC_ALLOWED_ORIGINS "$ALLOWED_ORIGINS"
+    write_docker_env_line BLOG_DYNAMIC_ADMIN_TOKEN "$admin_token"
+    write_docker_env_line BLOG_DYNAMIC_POST_PASSWORD "$post_password"
+    write_docker_env_line BLOG_DYNAMIC_DIARY_PASSWORD "$diary_password"
+    write_docker_env_line BLOG_DYNAMIC_DATA_DIR "/var/lib/blog-dynamic"
+    write_docker_env_line BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL"
+  } >"$docker_temp_file"
+
   install -m 0600 -o root -g root "$temp_file" "$ENV_FILE"
+  install -m 0600 -o root -g root "$docker_temp_file" "$DOCKER_ENV_FILE"
   rm -f "$temp_file"
+  rm -f "$docker_temp_file"
   DYNAMIC_DOMAIN="$(strip_url_host "$PUBLIC_BASE_URL")"
 }
 
@@ -485,6 +511,49 @@ EOF
   fi
 }
 
+run_service_container_direct() {
+  log "Starting ${SERVICE_NAME} with docker run fallback."
+  docker rm -f "$SERVICE_NAME" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "$SERVICE_NAME" \
+    --restart unless-stopped \
+    --env-file "$DOCKER_ENV_FILE" \
+    -e BLOG_DYNAMIC_HOST=0.0.0.0 \
+    -e BLOG_DYNAMIC_PORT="$CONTAINER_PORT" \
+    -e BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic \
+    -p "127.0.0.1:${BIND_PORT}:${CONTAINER_PORT}" \
+    -v "${DATA_DIR}:/var/lib/blog-dynamic" \
+    --health-cmd "node -e \"fetch('http://127.0.0.1:${CONTAINER_PORT}/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"" \
+    --health-interval 30s \
+    --health-timeout 5s \
+    --health-retries 3 \
+    --health-start-period 10s \
+    blog-dynamic:local >/dev/null
+}
+
+run_cloudflared_container_direct() {
+  [ "$CLOUDFLARED_ENABLE" = "1" ] || return 0
+  log "Starting Cloudflare Tunnel with docker run fallback."
+  docker rm -f "${SERVICE_NAME}-cloudflared" >/dev/null 2>&1 || true
+  docker run -d \
+    --name "${SERVICE_NAME}-cloudflared" \
+    --restart unless-stopped \
+    --network host \
+    -v "${CLOUDFLARED_TOKEN_FILE}:/run/secrets/cloudflared_token:ro" \
+    cloudflare/cloudflared:latest \
+    tunnel --no-autoupdate run --token-file /run/secrets/cloudflared_token >/dev/null
+}
+
+start_container_direct() {
+  log "Building ${SERVICE_NAME} image directly."
+  docker build \
+    --build-arg "NODE_IMAGE=${BUILD_NODE_IMAGE}" \
+    -t blog-dynamic:local \
+    "$REPO_DIR/server"
+  run_service_container_direct
+  run_cloudflared_container_direct
+}
+
 ensure_cloudflared_token_file() {
   [ "$CLOUDFLARED_ENABLE" = "1" ] || return 0
   [ -f "$CLOUDFLARED_TOKEN_FILE" ] || fail "Cloudflare Tunnel is enabled but ${CLOUDFLARED_TOKEN_FILE} does not exist."
@@ -513,7 +582,12 @@ start_container() {
 
   log "Compose recreate failed; removing stale container and retrying."
   remove_stale_containers
-  compose_cmd "${compose_args[@]}"
+  if compose_cmd "${compose_args[@]}"; then
+    return
+  fi
+
+  log "Compose retry failed; falling back to direct docker run."
+  start_container_direct
 }
 
 render_nginx_config() {

@@ -62,7 +62,10 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     <div class="diary-book" data-diary-book hidden>
       <div class="diary-book__top">
         <h2>日记本</h2>
-        <button type="button" data-diary-new>新建</button>
+        <div class="diary-book__actions">
+          <button type="button" data-diary-manage aria-pressed="false">管理</button>
+          <button type="button" data-diary-new>新建</button>
+        </div>
       </div>
       <form class="diary-filter" data-diary-filter autocomplete="off">
         <label>
@@ -119,6 +122,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   const diaryFromInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-from]");
   const diaryToInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-to]");
   const diaryList = diaryModal?.querySelector<HTMLElement>("[data-diary-list]");
+  const diaryManageButton = diaryModal?.querySelector<HTMLButtonElement>("[data-diary-manage]");
   const diaryNewButton = diaryModal?.querySelector<HTMLButtonElement>("[data-diary-new]");
   const diaryBackButton = diaryModal?.querySelector<HTMLButtonElement>("[data-diary-back]");
   const diaryEditorHeading = diaryModal?.querySelector<HTMLElement>("[data-diary-editor-heading]");
@@ -215,6 +219,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   };
   let diaryEntries: DiaryEntry[] = [];
   let editingDiaryEntry: DiaryEntry | null = null;
+  let diaryManageMode = false;
   let diaryFilterTimer = 0;
   let diaryRequestToken = 0;
   const diaryClickWindow = 8000;
@@ -440,6 +445,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   const showDiaryGate = () => {
     if (!diaryModal || !diaryGate || !diaryBook || !diaryEditor) return;
     diarySessionToken = "";
+    setDiaryManageMode(false);
     diaryGate.hidden = false;
     diaryBook.hidden = true;
     diaryEditor.hidden = true;
@@ -488,15 +494,27 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
             <div>
               ${isLong ? `<button type="button" data-diary-toggle>查看更多</button>` : ""}
             </div>
-            <div class="diary-entry__actions">
+            ${
+              diaryManageMode
+                ? `<div class="diary-entry__actions">
               <button type="button" data-diary-edit="${escapeDiaryHtml(String(entry.id || ""))}">编辑</button>
               <button type="button" data-diary-delete="${escapeDiaryHtml(String(entry.id || ""))}">删除</button>
-            </div>
+            </div>`
+                : ""
+            }
           </div>
         </article>`;
       })
       .join("");
   };
+
+  function setDiaryManageMode(active: boolean) {
+    diaryManageMode = active;
+    diaryManageButton?.setAttribute("aria-pressed", active ? "true" : "false");
+    if (diaryManageButton) diaryManageButton.textContent = active ? "退出管理" : "管理";
+    diaryBook?.classList.toggle("is-managing", active);
+    renderDiaryEntries(diaryEntries);
+  }
 
   const loadDiaryEntries = async (showStatus = true) => {
     if (!diaryApiBase || !diarySessionToken) return;
@@ -522,6 +540,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   const showDiaryBook = async (reload = true) => {
     if (!diaryGate || !diaryBook || !diaryEditor) return;
     editingDiaryEntry = null;
+    setDiaryManageMode(false);
     diaryGate.hidden = true;
     diaryBook.hidden = false;
     diaryEditor.hidden = true;
@@ -656,6 +675,8 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     resetDiaryEditor();
     showDiaryEditor();
   });
+
+  diaryManageButton?.addEventListener("click", () => setDiaryManageMode(!diaryManageMode));
 
   diaryBackButton?.addEventListener("click", () => {
     void showDiaryBook();
@@ -1125,6 +1146,15 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     justify-content: space-between;
   }
 
+  .diary-book__actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-right: 42px;
+  }
+
   .diary-gate label,
   .diary-filter label,
   .diary-editor label {
@@ -1180,7 +1210,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .diary-book button,
   .diary-editor button,
   .diary-filter button,
-  .diary-entry button {
+  :global(.diary-entry button) {
     justify-self: start;
     min-width: 90px;
     height: 40px;
@@ -1192,7 +1222,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .diary-filter button[type="reset"],
-  .diary-entry__actions button:last-child {
+  :global(.diary-entry__actions button:last-child) {
     border: 1px solid var(--border);
     background: var(--surface-muted);
     color: var(--text);
@@ -1202,7 +1232,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .diary-book button:disabled,
   .diary-editor button:disabled,
   .diary-filter button:disabled,
-  .diary-entry button:disabled {
+  :global(.diary-entry button:disabled) {
     cursor: not-allowed;
     opacity: 0.58;
   }
@@ -1214,84 +1244,93 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     font-size: 0.92rem;
   }
 
-  .diary-book__list {
+  :global(.diary-book__list) {
     display: grid;
-    gap: 18px;
+    gap: 24px;
   }
 
-  .diary-book__empty {
+  :global(.diary-book__empty) {
     margin: 0;
     color: var(--muted);
   }
 
-  .diary-entry {
+  :global(.diary-entry) {
     position: relative;
     display: grid;
-    gap: 8px;
+    gap: 9px;
+    min-width: 0;
     padding: 16px 14px;
-    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 18%);
+    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 34%);
+    border-bottom-color: color-mix(in srgb, var(--accent), #5a78d6 24%);
     border-radius: 8px;
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 5%), color-mix(in srgb, var(--surface-muted), transparent 10%));
+      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 7%), color-mix(in srgb, var(--surface-muted), transparent 4%));
     box-shadow:
-      0 10px 26px rgba(91, 58, 76, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.38);
+      0 13px 28px rgba(91, 58, 76, 0.13),
+      0 2px 0 color-mix(in srgb, var(--accent), transparent 80%),
+      inset 0 1px 0 rgba(255, 255, 255, 0.46);
   }
 
-  .diary-entry + .diary-entry::before {
+  :global(.diary-entry + .diary-entry::before) {
     position: absolute;
-    top: -11px;
-    right: 8px;
-    left: 8px;
-    height: 3px;
+    top: -14px;
+    right: 4px;
+    left: 4px;
+    height: 6px;
     border-radius: 999px;
     background:
-      linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent), transparent 38%), transparent),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(95, 121, 180, 0.2));
-    box-shadow: 0 2px 7px rgba(70, 87, 126, 0.16);
+      linear-gradient(90deg, transparent, color-mix(in srgb, #3b76d1, transparent 36%), color-mix(in srgb, var(--accent), transparent 30%), transparent),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(59, 118, 209, 0.24));
+    box-shadow:
+      0 2px 8px rgba(70, 87, 126, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.68);
     content: "";
   }
 
-  .diary-entry__meta {
+  :global(.diary-entry__meta) {
     color: var(--muted);
     font-size: 0.82rem;
   }
 
-  .diary-entry h3 {
+  :global(.diary-entry h3) {
     margin: 0;
     font-size: 1.02rem;
     line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
-  .diary-entry__content {
+  :global(.diary-entry__content) {
     margin: 0;
     color: var(--text);
     line-height: 1.75;
     overflow-wrap: anywhere;
+    word-break: break-word;
     white-space: pre-wrap;
   }
 
-  .diary-entry.is-collapsed .diary-entry__content {
+  :global(.diary-entry.is-collapsed .diary-entry__content) {
     display: -webkit-box;
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 5;
   }
 
-  .diary-entry__bar {
+  :global(.diary-entry__bar) {
     display: flex;
     gap: 10px;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
+    min-height: 34px;
   }
 
-  .diary-entry__bar button {
+  :global(.diary-entry__bar button) {
     min-width: 72px;
     height: 34px;
   }
 
-  .diary-entry__actions {
+  :global(.diary-entry__actions) {
     display: flex;
+    flex: 0 0 auto;
     gap: 8px;
   }
 
@@ -1316,9 +1355,14 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       flex: 1 1 0;
     }
 
-    .diary-entry__bar {
+    :global(.diary-entry__bar) {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .diary-book__actions {
+      width: 100%;
+      padding-right: 0;
     }
 
     .diary-gate button,

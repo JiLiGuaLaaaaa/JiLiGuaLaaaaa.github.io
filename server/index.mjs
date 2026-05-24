@@ -5,15 +5,36 @@ import { fileURLToPath } from "node:url";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const host = process.env.BLOG_DYNAMIC_HOST || "127.0.0.1";
-const port = Number.parseInt(process.env.BLOG_DYNAMIC_PORT || "8787", 10);
-const publicBaseUrl = process.env.BLOG_DYNAMIC_PUBLIC_BASE_URL || "";
-const adminToken = process.env.BLOG_DYNAMIC_ADMIN_TOKEN || "";
-const dynamicPostPassword = process.env.BLOG_DYNAMIC_POST_PASSWORD || "";
-const diaryPassword = process.env.BLOG_DYNAMIC_DIARY_PASSWORD || "";
-const dataDir = resolve(process.env.BLOG_DYNAMIC_DATA_DIR || join(__dirname, ".data"));
+
+const cleanEnvValue = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const trimmed = value.trim();
+  const quote = trimmed[0];
+  if ((quote === "\"" || quote === "'") && trimmed.endsWith(quote)) {
+    return trimmed
+      .slice(1, -1)
+      .replaceAll("\\\"", "\"")
+      .replaceAll("\\\\", "\\");
+  }
+  return trimmed;
+};
+
+const envValue = (key, fallback = "") => {
+  const value = cleanEnvValue(process.env[key]);
+  return value || fallback;
+};
+
+const host = envValue("BLOG_DYNAMIC_HOST", "127.0.0.1");
+const port = Number.parseInt(envValue("BLOG_DYNAMIC_PORT", "8787"), 10);
+const publicBaseUrl = envValue("BLOG_DYNAMIC_PUBLIC_BASE_URL");
+const adminToken = envValue("BLOG_DYNAMIC_ADMIN_TOKEN");
+const dynamicPostPassword = envValue("BLOG_DYNAMIC_POST_PASSWORD");
+const diaryPassword = envValue("BLOG_DYNAMIC_DIARY_PASSWORD");
+const dataDir = resolve(envValue("BLOG_DYNAMIC_DATA_DIR", join(__dirname, ".data")));
 const allowedOrigins = new Set(
-  (process.env.BLOG_DYNAMIC_ALLOWED_ORIGINS || "http://localhost:4321")
+  envValue("BLOG_DYNAMIC_ALLOWED_ORIGINS", "http://localhost:4321")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean)

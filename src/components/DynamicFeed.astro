@@ -93,7 +93,10 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       </button>
       <div class="dynamic-manager__top">
         <h3 id="dynamic-manager-title" data-dynamic-editor-heading>发布动态</h3>
-        <button type="button" data-dynamic-new>新动态</button>
+        <div class="dynamic-manager__actions">
+          <button type="button" data-dynamic-manage aria-pressed="false">管理</button>
+          <button type="button" data-dynamic-new>新动态</button>
+        </div>
       </div>
       <form class="dynamic-composer" data-dynamic-form autocomplete="off">
         <label>
@@ -243,6 +246,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     const managerModal = root.querySelector<HTMLElement>("[data-dynamic-manager-modal]")!;
     const managerList = root.querySelector<HTMLElement>("[data-dynamic-manager-list]")!;
     const managerHeading = root.querySelector<HTMLElement>("[data-dynamic-editor-heading]")!;
+    const manageButton = root.querySelector<HTMLButtonElement>("[data-dynamic-manage]")!;
     const newButton = root.querySelector<HTMLButtonElement>("[data-dynamic-new]")!;
     const form = root.querySelector<HTMLFormElement>("[data-dynamic-form]")!;
     const titleInput = root.querySelector<HTMLInputElement>("[data-dynamic-title]")!;
@@ -267,6 +271,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       !managerModal ||
       !managerList ||
       !managerHeading ||
+      !manageButton ||
       !newButton ||
       !form ||
       !titleInput ||
@@ -286,6 +291,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     let pendingImages: PendingImage[] = [];
     let retainedImages: DynamicImage[] = [];
     let editingRecord: DynamicRecord | null = null;
+    let dynamicManageMode = false;
     let filterTimer = 0;
     let requestToken = 0;
 
@@ -303,8 +309,17 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     const closeManagerModal = () => {
       resetEditor();
+      setDynamicManageMode(false);
       setModalOpen(managerModal, false);
     };
+
+    function setDynamicManageMode(active: boolean) {
+      dynamicManageMode = active;
+      manageButton.textContent = active ? "退出管理" : "管理";
+      manageButton.setAttribute("aria-pressed", active ? "true" : "false");
+      managerModal.classList.toggle("is-managing", active);
+      renderManagerList();
+    }
 
     const getFilterParams = () => {
       const params = new URLSearchParams({ limit: String(Math.max(limit, 24)) });
@@ -321,7 +336,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     const renderImageGrid = (images: DynamicImage[]) => {
       if (images.length === 0) return "";
-      return `<div class="dynamic-item__images dynamic-item__images--${Math.min(images.length, 4)}">
+      return `<div class="dynamic-item__images dynamic-item__images--${Math.min(images.length, maxImages)}">
         ${images
           .map((image) => {
             const src = escapeHtml(resolveImageSrc(apiBase, String(image.src || "")));
@@ -497,10 +512,14 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
               <strong>${escapeHtml(summary)}</strong>
               ${date ? `<time datetime="${escapeHtml(String(record.createdAt))}">${date}</time>` : ""}
             </div>
-            <div class="dynamic-manager-item__actions">
+            ${
+              dynamicManageMode
+                ? `<div class="dynamic-manager-item__actions">
               <button type="button" data-dynamic-edit="${escapeHtml(String(record.id || ""))}">编辑</button>
               <button type="button" data-dynamic-delete="${escapeHtml(String(record.id || ""))}">删除</button>
-            </div>
+            </div>`
+                : ""
+            }
           </article>`;
         })
         .join("");
@@ -513,6 +532,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     openButton.addEventListener("click", () => {
       if (!apiBase) return;
       if (dynamicSessionToken) {
+        setDynamicManageMode(false);
         setModalOpen(managerModal, true);
         renderManagerList();
         return;
@@ -556,6 +576,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         dynamicSessionToken = String(payload.token);
         closePasswordModal();
         resetEditor();
+        setDynamicManageMode(false);
         setModalOpen(managerModal, true);
         renderManagerList();
       } catch (error) {
@@ -630,7 +651,12 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       renderExistingPreview();
     });
 
-    newButton.addEventListener("click", resetEditor);
+    manageButton.addEventListener("click", () => setDynamicManageMode(!dynamicManageMode));
+
+    newButton.addEventListener("click", () => {
+      resetEditor();
+      contentInput.focus();
+    });
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -760,6 +786,15 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     justify-content: space-between;
   }
 
+  .dynamic-manager__actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-right: 42px;
+  }
+
   .dynamic-feed__eyebrow {
     margin: 0;
     color: var(--accent-strong);
@@ -850,7 +885,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .dynamic-password-modal__actions button,
   .dynamic-composer button,
   .dynamic-manager__top button,
-  .dynamic-manager-item button {
+  :global(.dynamic-manager-item button) {
     min-width: 74px;
     height: 40px;
     border: 0;
@@ -863,7 +898,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .dynamic-password-modal__actions button[type="submit"],
   .dynamic-composer button,
   .dynamic-manager__top button,
-  .dynamic-manager-item button:first-child {
+  :global(.dynamic-manager-item button:first-child) {
     background: var(--accent);
     color: #fff;
   }
@@ -916,9 +951,11 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-manager-modal__panel {
     display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
     width: min(100%, 760px);
-    max-height: min(88vh, 820px);
+    max-height: min(90vh, 820px);
     overflow: auto;
+    overscroll-behavior: contain;
     gap: 16px;
   }
 
@@ -1054,79 +1091,88 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-password-modal__actions button:disabled,
   .dynamic-composer button:disabled,
-  .dynamic-manager-item button:disabled {
+  :global(.dynamic-manager-item button:disabled) {
     cursor: not-allowed;
     opacity: 0.58;
   }
 
-  .dynamic-feed__list {
+  :global(.dynamic-feed__list) {
     display: grid;
-    gap: 22px;
+    gap: 26px;
   }
 
-  .dynamic-item {
+  :global(.dynamic-item) {
     position: relative;
     display: grid;
     gap: 10px;
+    min-width: 0;
     padding: 18px 16px 14px;
-    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 22%);
+    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 34%);
+    border-bottom-color: color-mix(in srgb, var(--accent), #5a78d6 28%);
     border-radius: 8px;
     background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 5%), color-mix(in srgb, var(--surface-muted), transparent 10%));
+      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 7%), color-mix(in srgb, var(--surface-muted), transparent 4%));
     box-shadow:
-      0 12px 30px rgba(91, 58, 76, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.42);
+      0 14px 30px rgba(91, 58, 76, 0.14),
+      0 2px 0 color-mix(in srgb, var(--accent), transparent 78%),
+      inset 0 1px 0 rgba(255, 255, 255, 0.48);
   }
 
-  .dynamic-item + .dynamic-item::before {
+  :global(.dynamic-item + .dynamic-item::before) {
     position: absolute;
-    top: -13px;
-    right: 8px;
-    left: 8px;
-    height: 4px;
+    top: -15px;
+    right: 4px;
+    left: 4px;
+    height: 6px;
     border-radius: 999px;
     background:
-      linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent), transparent 34%), transparent),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(95, 121, 180, 0.22));
-    box-shadow: 0 2px 8px rgba(70, 87, 126, 0.18);
+      linear-gradient(90deg, transparent, color-mix(in srgb, #3b76d1, transparent 32%), color-mix(in srgb, var(--accent), transparent 24%), transparent),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(59, 118, 209, 0.26));
+    box-shadow:
+      0 2px 9px rgba(70, 87, 126, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
     content: "";
   }
 
-  .dynamic-item h3 {
+  :global(.dynamic-item h3) {
     margin: 0;
     font-size: 1.08rem;
     line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
-  .dynamic-item__content {
+  :global(.dynamic-item__content) {
     margin: 0;
     color: var(--text);
     line-height: 1.75;
     overflow-wrap: anywhere;
+    word-break: break-word;
     white-space: pre-wrap;
   }
 
-  .dynamic-item.is-collapsed .dynamic-item__content {
+  :global(.dynamic-item.is-collapsed .dynamic-item__content) {
     display: -webkit-box;
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
   }
 
-  .dynamic-item__images {
+  :global(.dynamic-item__images) {
     display: grid;
-    gap: 6px;
+    width: min(100%, 360px);
+    gap: 8px;
   }
 
-  .dynamic-item__images--2,
-  .dynamic-item__images--3,
-  .dynamic-item__images--4 {
+  :global(.dynamic-item__images--2),
+  :global(.dynamic-item__images--3),
+  :global(.dynamic-item__images--4) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dynamic-item__images a {
+  :global(.dynamic-item__images a) {
     display: grid;
     aspect-ratio: 1;
+    width: 100%;
     overflow: hidden;
     place-items: center;
     border: 1px solid var(--border);
@@ -1145,31 +1191,34 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       auto;
   }
 
-  .dynamic-item__images img {
+  :global(.dynamic-item__images img) {
     width: 100%;
     height: 100%;
     object-fit: contain;
   }
 
-  .dynamic-item.is-collapsed .dynamic-item__images a:nth-child(n + 5) {
+  :global(.dynamic-item.is-collapsed .dynamic-item__images a:nth-child(n + 5)) {
     display: none;
   }
 
-  .dynamic-item__footer {
+  :global(.dynamic-item__footer) {
     display: flex;
     gap: 10px;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
+    min-height: 32px;
   }
 
-  .dynamic-item__footer time {
+  :global(.dynamic-item__footer time) {
     margin-left: auto;
     color: #3b76d1;
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     font-weight: 800;
+    line-height: 1.2;
+    text-align: right;
   }
 
-  .dynamic-item__toggle {
+  :global(.dynamic-item__toggle) {
     justify-self: start;
     min-height: 32px;
     padding: 0 12px;
@@ -1182,45 +1231,53 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .dynamic-manager__list {
     display: grid;
+    min-height: 0;
+    max-height: min(34vh, 300px);
+    overflow: auto;
     gap: 8px;
     padding-top: 4px;
+    padding-right: 4px;
   }
 
-  .dynamic-manager__empty {
+  :global(.dynamic-manager__empty) {
     margin: 0;
     color: var(--muted);
   }
 
-  .dynamic-manager-item {
+  :global(.dynamic-manager-item) {
     display: flex;
     gap: 10px;
     align-items: center;
     justify-content: space-between;
     padding: 10px;
-    border-top: 1px solid var(--border);
+    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 18%);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 26%);
   }
 
-  .dynamic-manager-item strong,
-  .dynamic-manager-item time {
+  :global(.dynamic-manager-item strong),
+  :global(.dynamic-manager-item time) {
     display: block;
   }
 
-  .dynamic-manager-item strong {
+  :global(.dynamic-manager-item strong) {
     font-size: 0.94rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
-  .dynamic-manager-item time {
+  :global(.dynamic-manager-item time) {
     color: var(--muted);
     font-size: 0.76rem;
   }
 
-  .dynamic-manager-item__actions {
+  :global(.dynamic-manager-item__actions) {
     display: flex;
     flex: 0 0 auto;
     gap: 8px;
   }
 
-  .dynamic-manager-item__actions button:last-child {
+  :global(.dynamic-manager-item__actions button:last-child) {
     border: 1px solid color-mix(in srgb, #cf3f5f, transparent 30%);
     background: color-mix(in srgb, #cf3f5f, transparent 88%);
     color: #b72f4d;
@@ -1256,9 +1313,14 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .dynamic-manager-item {
+    :global(.dynamic-manager-item) {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .dynamic-manager__actions {
+      width: 100%;
+      padding-right: 0;
     }
   }
 </style>

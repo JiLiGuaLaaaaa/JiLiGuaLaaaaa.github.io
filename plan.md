@@ -250,3 +250,25 @@
 - [x] 更新 README、动态服务文档和服务器操作说明，写清新增功能和部署注意事项，不写入真实密钥或服务器信息
 - [x] 运行本地可用检查：服务端语法、Astro/TypeScript 构建或可替代检查、`git diff --check`、敏感信息扫描；沙箱内 Astro 构建起初因 `spawn EPERM` 失败，沙箱外完整 `corepack pnpm build` 已通过
 - [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff，确认功能与安全边界后汇报
+
+## 本次服务器 Docker 启动兼容修复
+
+- [x] 重新阅读 `requirements.md`、`plan.md`、README 和服务器部署说明，确认当前失败来自服务器缺少 Docker Compose v2 和旧 `docker-compose` 重建兼容问题
+- [x] 更新部署文档和操作说明，补充旧 `docker-compose` 服务器的正确更新方式，不再只提示 `docker compose`
+- [x] 通过 SSH 连接私人动态服务服务器，检查当前 `blog-dynamic` 容器和镜像状态
+- [x] 修复 Docker 原生命令读取带引号 env 文件导致 `BLOG_DYNAMIC_PUBLIC_BASE_URL` 解析失败的问题
+- [x] 在不删除 `/var/lib/blog-dynamic` 数据的前提下重建或重新创建 `blog-dynamic` 容器
+- [x] 验证本机 `/health`、公网 `/health` 和公网动态列表接口返回正常
+- [x] 从头到尾复核 `plan.md`、`requirements.md`、README 和本轮 diff 后汇报
+
+## 本次动态与日记展示回归修复
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和动态/日记组件源码，确认当前回归集中在运行时插入 DOM 的样式命中、展开收起和管理按钮误触
+- [x] 更新 `requirements.md` 和 `plan.md`，记录本轮动态/日记展示、滚动和管理模式修复需求
+- [x] 修复动态列表展示：运行时条目全局样式、清晰分界线、右下角蓝色小时间、正方形不裁切缩略图、正文自动换行和查看更多/收起
+- [x] 修复动态管理弹窗：列表可滚动、默认隐藏编辑删除按钮、点击管理后才进入编辑删除模式
+- [x] 修复日记本展示：运行时条目全局样式、清晰分界线、正文自动换行和查看更多/收起
+- [x] 修复日记管理交互：默认隐藏编辑删除按钮、点击管理后才进入编辑删除模式
+- [x] 更新 README，写清动态和日记管理模式与展示修复后的行为
+- [x] 运行本地可用检查：TypeScript/Astro 检查或构建、`git diff --check`、敏感信息扫描
+- [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报

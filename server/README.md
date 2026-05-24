@@ -11,6 +11,10 @@ sudo bash server/bootstrap-docker.sh
 
 `node server/index.mjs` 用于本地测试。`sudo bash server/bootstrap-docker.sh` 是目标 Linux 服务器上的推荐部署方式，会创建 Docker 容器、nginx、环境文件和数据目录。`sudo bash server/bootstrap-linux.sh` 保留为非 Docker 备用部署方式。
 
+当前私人服务器只有旧版 `docker-compose`，没有 Docker Compose v2 的 `docker compose` 插件。更新动态服务时优先运行 `sudo bash /opt/blog-project/server/bootstrap-docker.sh`；脚本会优先使用可用的 Compose，并在旧版重建容器触发兼容错误时改用 `docker run` 只重建 `blog-dynamic` 容器。不要删除 `/var/lib/blog-dynamic` 数据目录。
+
+脚本会保留 `/etc/blog-dynamic.env` 作为主要配置文件，并额外生成 `/etc/blog-dynamic.docker.env` 供 `docker run --env-file` 兜底路径使用。日常修改密码和配置只改 `/etc/blog-dynamic.env`，不要手动维护 Docker 专用文件。
+
 Docker 方案不需要宿主机安装 Node.js；Node 运行时在镜像内。容器只监听宿主机 `127.0.0.1:8787`，公开域名通过 nginx 或 Cloudflare 反向代理访问。
 
 非 Docker 备用脚本会优先使用已有的 Node.js 18+。如果目标机没有可用版本，会尝试把可移植 Node.js 安装到 `/opt/blog-node`，可通过 `BLOG_DYNAMIC_NODE_DIR` 和 `BLOG_DYNAMIC_NODE_VERSION` 覆盖。
@@ -61,6 +65,7 @@ Tunnel 公共主机名里把 `activity.20050619.xyz` 指向 `http://127.0.0.1:87
 可迁移部署只依赖两类服务器状态：
 
 - `/etc/blog-dynamic.env`
+- `/etc/blog-dynamic.docker.env` 可由脚本重新生成，不需要手动迁移
 - `/var/lib/blog-dynamic`
 - 如果启用 Cloudflare Tunnel：`/etc/blog-dynamic-cloudflared.token`
 

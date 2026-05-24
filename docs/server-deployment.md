@@ -105,8 +105,10 @@ sudo -E bash server/bootstrap-docker.sh
 
 ```bash
 cd /opt/blog-project/server
-sudo docker compose up -d --build
+sudo bash /opt/blog-project/server/bootstrap-docker.sh
 ```
+
+当前私人服务器只有旧版 `docker-compose`，没有 Docker Compose v2 的 `docker compose` 插件。不要直接照搬 `docker compose up -d --build`；如果需要手动查看日志或重启，可用 `sudo docker-compose logs -f`、`sudo docker-compose restart`。部署脚本已经包含旧 `docker-compose` 兼容兜底，必要时会只重建 `blog-dynamic` 容器，不会删除 `/var/lib/blog-dynamic`。
 
 只修改 Astro 前端页面时，不需要重建服务器容器，只需要重新触发 GitHub Actions 发布 GitHub Pages。
 
@@ -179,9 +181,12 @@ activity.20050619.xyz  A  <SERVER_PUBLIC_IP>
 /opt/blog-project        # 项目源码
 /var/lib/blog-dynamic    # 动态数据目录
 /etc/blog-dynamic.env    # 服务环境变量
+/etc/blog-dynamic.docker.env # Docker 原生命令兜底专用环境变量，由脚本生成
 ```
 
 动态数据目录必须在仓库外，避免日记、动态草稿或兼容数据、访问量数据被提交。动态图片保存在 `/var/lib/blog-dynamic/uploads/`，迁移和备份时必须包含整个 `/var/lib/blog-dynamic`。
+
+日常修改配置只改 `/etc/blog-dynamic.env`。`/etc/blog-dynamic.docker.env` 是部署脚本为 `docker run --env-file` 兜底路径生成的无外层引号版本，用来兼容旧 `docker-compose` 重建失败时的直接容器启动。
 
 ## 环境变量
 
