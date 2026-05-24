@@ -88,43 +88,45 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       aria-modal="true"
       aria-labelledby="dynamic-manager-title"
     >
-      <button class="dynamic-manager-modal__close" type="button" aria-label="关闭" data-dynamic-manager-close>
-        ×
-      </button>
       <div class="dynamic-manager__top">
         <h3 id="dynamic-manager-title" data-dynamic-editor-heading>发布动态</h3>
         <div class="dynamic-manager__actions">
           <button type="button" data-dynamic-manage aria-pressed="false">管理</button>
           <button type="button" data-dynamic-new>新动态</button>
+          <button class="dynamic-manager-modal__close" type="button" aria-label="关闭" data-dynamic-manager-close>
+            ×
+          </button>
         </div>
       </div>
-      <form class="dynamic-composer" data-dynamic-form autocomplete="off">
-        <label>
-          <span>标题</span>
-          <input maxlength="80" placeholder="可不填" data-dynamic-title />
-        </label>
-        <label class="dynamic-composer__content">
-          <span>正文</span>
-          <textarea
-            name="content"
-            rows="5"
-            maxlength="1000"
-            placeholder="今天发生了什么？"
-            data-dynamic-content
-          ></textarea>
-        </label>
-        <div class="dynamic-existing-preview" data-dynamic-existing-preview hidden></div>
-        <label class="dynamic-dropzone" data-dynamic-dropzone>
-          <input type="file" accept="image/png,image/jpeg,image/webp" multiple data-dynamic-images />
-          <span>拖入图片，或点击选择</span>
-        </label>
-        <div class="dynamic-image-preview" data-dynamic-image-preview hidden></div>
-        <div class="dynamic-composer__bar">
-          <button type="submit" data-dynamic-submit>发布</button>
-        </div>
-        <p class="dynamic-composer__status" data-dynamic-form-status></p>
-      </form>
-      <div class="dynamic-manager__list" data-dynamic-manager-list></div>
+      <div class="dynamic-manager__body" data-dynamic-manager-body>
+        <form class="dynamic-composer" data-dynamic-form autocomplete="off">
+          <label>
+            <span>标题</span>
+            <input maxlength="80" placeholder="可不填" data-dynamic-title />
+          </label>
+          <label class="dynamic-composer__content">
+            <span>正文</span>
+            <textarea
+              name="content"
+              rows="5"
+              maxlength="1000"
+              placeholder="今天发生了什么？"
+              data-dynamic-content
+            ></textarea>
+          </label>
+          <div class="dynamic-existing-preview" data-dynamic-existing-preview hidden></div>
+          <label class="dynamic-dropzone" data-dynamic-dropzone>
+            <input type="file" accept="image/png,image/jpeg,image/webp" multiple data-dynamic-images />
+            <span>拖入图片，或点击选择</span>
+          </label>
+          <div class="dynamic-image-preview" data-dynamic-image-preview hidden></div>
+          <div class="dynamic-composer__bar">
+            <button type="submit" data-dynamic-submit>发布</button>
+          </div>
+          <p class="dynamic-composer__status" data-dynamic-form-status></p>
+        </form>
+        <div class="dynamic-manager__list" data-dynamic-manager-list></div>
+      </div>
     </section>
   </div>
 </section>
@@ -244,6 +246,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     const passwordStatus = root.querySelector<HTMLElement>("[data-dynamic-password-status]")!;
     const passwordSubmitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-password-confirm]")!;
     const managerModal = root.querySelector<HTMLElement>("[data-dynamic-manager-modal]")!;
+    const managerBody = root.querySelector<HTMLElement>("[data-dynamic-manager-body]");
     const managerList = root.querySelector<HTMLElement>("[data-dynamic-manager-list]")!;
     const managerHeading = root.querySelector<HTMLElement>("[data-dynamic-editor-heading]")!;
     const manageButton = root.querySelector<HTMLButtonElement>("[data-dynamic-manage]")!;
@@ -269,6 +272,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       !passwordStatus ||
       !passwordSubmitButton ||
       !managerModal ||
+      !managerBody ||
       !managerList ||
       !managerHeading ||
       !manageButton ||
@@ -286,6 +290,8 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       return;
     }
 
+    document.body.append(passwordModal, managerModal);
+
     let records: DynamicRecord[] = [];
     let dynamicSessionToken = "";
     let pendingImages: PendingImage[] = [];
@@ -295,9 +301,9 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     let filterTimer = 0;
     let requestToken = 0;
 
-    const scrollEditorIntoView = () => {
+    const resetManagerScroll = () => {
       window.setTimeout(() => {
-        form.scrollIntoView({ block: "start", behavior: "smooth" });
+        managerBody.scrollTo({ top: 0, behavior: "auto" });
       }, 0);
     };
 
@@ -494,8 +500,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       formStatus.textContent = "";
       renderExistingPreview();
       renderPendingPreview();
-      scrollEditorIntoView();
-      contentInput.focus();
+      resetManagerScroll();
     }
 
     function renderManagerList() {
@@ -586,7 +591,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         setDynamicManageMode(false);
         setModalOpen(managerModal, true);
         renderManagerList();
-        scrollEditorIntoView();
+        resetManagerScroll();
       } catch (error) {
         passwordStatus.textContent = error instanceof Error ? error.message : "密码确认失败。";
       } finally {
@@ -663,8 +668,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     newButton.addEventListener("click", () => {
       resetEditor();
-      scrollEditorIntoView();
-      contentInput.focus();
+      resetManagerScroll();
     });
 
     form.addEventListener("submit", async (event) => {
@@ -673,7 +677,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       const content = contentInput.value.trim();
       if (!content && retainedImages.length + pendingImages.length === 0) {
         formStatus.textContent = "先写一点内容或添加图片。";
-        contentInput.focus();
+        resetManagerScroll();
         return;
       }
       if (!dynamicSessionToken) {
@@ -801,7 +805,6 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
-    padding-right: 42px;
   }
 
   .dynamic-feed__eyebrow {
@@ -937,12 +940,9 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-manager-modal {
-    display: block;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scroll-padding: 20px;
-    -webkit-overflow-scrolling: touch;
+    display: grid;
+    overflow: hidden;
+    place-items: center;
   }
 
   .dynamic-password-modal[hidden],
@@ -954,6 +954,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .dynamic-manager-modal__backdrop {
     position: fixed;
     inset: 0;
+    z-index: 0;
     background: rgba(31, 20, 30, 0.46);
     backdrop-filter: blur(8px);
   }
@@ -971,11 +972,13 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-manager-modal__panel {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     width: min(100%, 760px);
-    margin: min(5vh, 36px) auto;
-    overflow: visible;
-    gap: 16px;
+    max-height: calc(100dvh - 40px);
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: contain;
   }
 
   :root[data-theme="dark"] .dynamic-password-modal__panel,
@@ -983,8 +986,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     background: color-mix(in srgb, var(--surface), black 8%);
   }
 
-  .dynamic-password-modal__close,
-  .dynamic-manager-modal__close {
+  .dynamic-password-modal__close {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -997,10 +999,48 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     line-height: 1;
   }
 
+  .dynamic-manager-modal__close {
+    min-width: 40px;
+    width: 40px;
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .dynamic-manager__top {
+    position: relative;
+    flex: 0 0 auto;
+    z-index: 3;
+    margin: -20px -20px 0;
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border), var(--accent) 20%);
+    background: color-mix(in srgb, var(--surface), white 8%);
+    box-shadow: 0 10px 24px rgba(76, 42, 61, 0.12);
+  }
+
+  :root[data-theme="dark"] .dynamic-manager__top {
+    background: color-mix(in srgb, var(--surface), black 8%);
+  }
+
   .dynamic-password-modal__form,
   .dynamic-composer {
     display: grid;
     gap: 12px;
+  }
+
+  .dynamic-manager__body {
+    display: grid;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 16px;
+    margin: 0 -20px -20px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 20px 20px;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   .dynamic-password-modal__form h3,

@@ -281,3 +281,21 @@
 - [x] 更新 README，补充动态管理弹窗滚动和编辑定位行为
 - [x] 运行本地可用检查：Astro/TypeScript 构建或可替代检查、`git diff --check`、敏感信息扫描
 - [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报
+
+## 本次动态管理弹窗顶部操作栏修复
+
+- [x] 阅读 `requirements.md`、`plan.md`、`README.md` 和动态组件源码，确认截图中的问题是弹窗顶部操作栏被滚出视野且弹窗仍受外层动态面板影响
+- [x] 更新 `requirements.md` 和 `plan.md`，记录动态管理弹窗必须脱离外层面板、内部滚动、顶部操作栏始终可点
+- [x] 修复 `DynamicFeed.astro`：把动态弹窗挂到 `body` 下、改为面板内部滚动、移除会把顶部操作栏滚走的自动定位
+- [x] 更新 README，补充动态管理弹窗顶部操作栏固定和内部滚动行为
+- [x] 运行本地可用检查：Astro/TypeScript 构建或可替代检查、`git diff --check`、敏感信息扫描
+- [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报
+
+## 本次动态管理弹窗固定顶栏二次修复
+
+- [x] 重新阅读 `AGENTS.md`、`requirements.md`、`plan.md`、`README.md` 和 `DynamicFeed.astro`，确认当前问题仍是动态管理弹窗滚动层和顶部操作栏交互没有彻底隔离
+- [x] 更新 `requirements.md` 和 `plan.md`，记录顶部操作栏不能依赖 sticky、面板本身不滚动、内容区单独滚动和禁止自动聚焦挤走顶部按钮
+- [x] 修复 `DynamicFeed.astro`：把管理弹窗改成固定面板、固定顶部操作栏和独立滚动内容区，并只重置内容区滚动位置
+- [x] 更新 README，补充动态管理弹窗现在是固定顶部栏 + 内容区滚动的实现行为
+- [x] 运行本地可用检查：Astro/TypeScript 构建或可替代检查、`git diff --check`、敏感信息扫描；沙箱内 `corepack pnpm build` 仍因 Astro/Vite `spawn EPERM` 失败，沙箱外同命令已通过并构建 19 个页面
+- [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff 后汇报
