@@ -121,6 +121,18 @@
 
 - [ ] 后续如果要重新生成当前小人帧，继续使用本地 `生成指定动作视频 (3).mp4` 和 `scripts/process_video_mascot.py`
 
+## 本次动态服务 HTTPS 正式修复
+
+- [x] 复核当前计划、部署脚本和动态服务错误链路，确认根因是动态 API 子域 HTTPS 不通，而不是前端把动态服务地址写错
+- [x] 补强 `server/bootstrap-docker.sh`，支持识别 Let's Encrypt 证书、用 certbot 自动申请证书、生成 nginx 443 反向代理，并保留 Docker 容器只监听本机端口的部署模式
+- [x] 补强 `server/bootstrap-linux.sh`，让非 Docker 备用部署路径也支持同一套 HTTPS 证书变量和 nginx 443 配置
+- [x] 更新部署文档、示例环境变量和 nginx 示例，写清 HTTPS 必须打通以及 `BLOG_DYNAMIC_LETSENCRYPT_EMAIL` / `BLOG_DYNAMIC_SSL_CERT_PATH` / `BLOG_DYNAMIC_SSL_KEY_PATH` 的用法
+- [x] 运行本地语法、构建和敏感信息检查
+- [x] 补齐 Cloudflare 代理场景下的服务器 origin TLS 兜底变量和文档说明，并明确自签 origin TLS 需要用户批准安全取舍后才能远程启用
+- [x] 确认 TLS 策略：用户已批准自签 origin TLS + Cloudflare Full 模式继续部署
+- [ ] 将修复后的部署脚本同步到独立动态服务服务器并重新部署
+- [ ] 验证 `https://activity.20050619.xyz/health` 和 `https://activity.20050619.xyz/api/dynamics?limit=1` 可以正常访问
+
 ## 本次动态功能改造
 
 - [x] 在 `AGENTS.md` 写入本次动态功能改造的重点规则：敏感信息不入库、公开博客继续静态、动态能力独立部署到独立服务器、每完成一步重新阅读 `plan.md`
@@ -176,3 +188,52 @@
 - [x] 运行本地可用检查：服务端语法、Astro/TypeScript 构建检查、`git diff --check`、敏感信息扫描；沙箱内 Astro 检查仍会因环境权限触发 `spawn EPERM`，沙箱外同命令和完整构建已通过
 - [x] 把服务端变更重新部署到独立动态服务服务器；已通过本地 txt 中的 SSH 登录信息完成 Docker 部署、容器重建、nginx 配置更新与脚本内健康检查
 - [x] 从头到尾复核 `plan.md`、`requirements.md`、`README.md` 和本轮 diff，确认功能与安全边界后汇报
+
+## 本次 Cloudflare 525 继续修复
+
+- [x] 重新读取 `plan.md` 并确认当前未完成项
+- [x] 使用本地 txt 中的 SSH 信息连接独立动态服务服务器，检查 Docker、nginx、TLS、端口监听和本机健康检查
+- [x] 从服务器侧验证公网域名和源站地址的 HTTP/HTTPS 回源效果，区分代码问题、nginx 问题和 Cloudflare 回源问题
+- [x] 如源站配置不一致，重新同步部署脚本并重建 Docker/nginx/TLS 配置
+- [x] 增加 Cloudflare 支持的备用 HTTPS 端口监听，并验证是否可绕开源站 80/443 拦截（结论：源站本机可用，但公网备用端口没有到达源站，不能绕开当前回源问题）
+- [x] Cloudflare Tunnel 生效后验证 `https://activity.20050619.xyz/health` 和 `https://activity.20050619.xyz/api/dynamics?limit=1` 均返回 200
+- [ ] 运行本地语法/差异检查，并复核没有泄露敏感信息
+
+## 本次 Cloudflare Tunnel 正式接入修复
+
+- [x] 继续复查公网 443：源站本机 nginx/TLS 正常，公网 IP + Host 可访问，但公网域名 SNI 会触发 525/ICP 拦截，确认继续改 nginx 证书不能根治
+- [x] 为 Docker 部署增加 Cloudflare Tunnel 可选 profile、token-file 和文档说明，保持服务器迁移时只迁移环境文件、数据目录和 tunnel token
+- [x] 将 Cloudflare Tunnel 支持同步到独立动态服务服务器；当前服务器没有 Tunnel token，已完成服务端待命配置，未伪造公网部署成功
+- [x] 用户已在 Cloudflare Zero Trust 创建 `blog-dynamic` Tunnel，安装 `cloudflared` connector，配置 `activity.20050619.xyz -> http://127.0.0.1:8787`，公网 `https://activity.20050619.xyz/health` 已返回 200
+- [x] 运行本地语法/差异检查，并复核没有泄露敏感信息
+
+## 本次动态服务回归修复
+
+- [x] 重新阅读 `plan.md`，确认当前失败发生在“动态图片与日记本体验升级”之后，优先按部署回归处理
+- [x] 复核前端 `PUBLIC_DYNAMIC_API_BASE`、动态/日记请求路径、服务端接口和 Docker/nginx 部署脚本，确认最小修复点
+- [x] 修正部署脚本的默认行为：保留新版动态/日记/图片功能，但避免默认强制切换到复杂 HTTPS/Tunnel 链路
+- [x] 使用本地授权的 SSH 信息同步并重新部署到私人动态服务服务器，不输出真实 IP、账号、密码、token 或证书内容
+- [x] 验证服务器本机 API、nginx 反代和公网 `activity` 域名可访问；公网动态列表 API 已返回 200
+- [ ] 继续验证动态发布、日记读写和图片上传
+- [ ] 运行本地语法/差异/敏感信息检查，重新从头到尾复核 `plan.md` 后汇报
+
+## 本次回归修复当前结果
+
+- [x] 已同步修复后的 Docker/nginx 部署脚本到私人动态服务服务器，并完成容器重建和 nginx reload
+- [x] 已验证服务器本机动态服务正常：`/health`、`/api/dynamics?limit=1`、日记鉴权和上传静态读取路径均按预期响应
+- [x] 已将源站 nginx HTTPS 配置调整为 Cloudflare 兼容的 TLS 1.2/1.3 与常见 ECDH 曲线，并重新部署到服务器
+- [x] 已用带唯一标记的公网请求和源站日志确认：公网 525 请求没有以正常 HTTP 请求形式进入 nginx 访问日志
+- [x] 已抓包确认公网请求会触达服务器 443，但在 TLS/入口层被重置；备用 HTTPS 端口 8443/2053 仍返回 522
+- [x] Cloudflare Tunnel 生效后，公网 `https://activity.20050619.xyz/health` 已返回 200；原 525/ICP 拦截入口已绕开
+
+## 本次公网入口与源站 TLS 回归修复
+
+- [x] 重新阅读 `plan.md`，继续按“我改动部署后造成回归”的方向处理，不把动态服务未部署作为原因
+- [x] 修复部署模板：nginx 默认启用 TLS 1.2/1.3，但不再写死 `ssl_ecdh_curve`；新增 `BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS` 和 `BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE` 便于迁移时显式控制
+- [x] 同步并重新部署到私人动态服务服务器，确认容器、nginx 语法、本机 `/health` 和源站强制解析 HTTPS 均返回 200
+- [x] 验证 `activity` 公开域名现状：HTTPS 仍返回 525；HTTP ACME 测试公开返回备案/上游策略拦截页；抓包显示公网请求到达 443 后在 TLS 入口层被重置，未形成正常 nginx 访问日志
+- [x] 根据用户截图确认：Cloudflare 的 `activity` A 记录和 GitHub `PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz` 配置方向正确，不再要求用户重复修改这两处
+- [ ] 验证源站链路上的动态发布、日记会话、日记读取和图片上传/读取能力
+- [x] 运行本地语法/差异/敏感信息检查：`node --check server/index.mjs` 和 `git diff --check` 通过；敏感信息扫描未发现真实密钥，只有占位符和本机回环地址；`corepack pnpm build` 仍因 Astro/Vite `spawn EPERM` 失败；Git Bash `bash -n` 在当前 Windows 沙箱因 MSYS 权限错误无法执行
+- [ ] 远端接口级验证本轮被 SSH 执行审批层拦截，未再次连接服务器；用户已明确批准，但自动审批服务返回 503 并拒绝执行，当前不能绕过同等 SSH 操作
+- [x] 重新从头到尾复核 `plan.md` 后汇报

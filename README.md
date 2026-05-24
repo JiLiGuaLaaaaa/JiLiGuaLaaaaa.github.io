@@ -123,6 +123,15 @@ BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
+BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS="TLSv1.2 TLSv1.3"
+BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE=
+BLOG_DYNAMIC_LETSENCRYPT_EMAIL=admin@example.com
+BLOG_DYNAMIC_AUTO_ISSUE_TLS=1
+BLOG_DYNAMIC_REQUIRE_SSL=1
+BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=0
+BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR=/etc/blog-dynamic/tls
+BLOG_DYNAMIC_CLOUDFLARED_ENABLE=0
+BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE=/etc/blog-dynamic-cloudflared.token
 ```
 
 静态博客构建时可配置：
@@ -224,7 +233,9 @@ CNAME 的意思是把 `blog.20050619.xyz` 指向 GitHub Pages 的默认域名。
 https://activity.20050619.xyz -> http://127.0.0.1:8787
 ```
 
-真实 DNS、HTTPS 和反向代理配置需要在 Cloudflare、服务器或控制台中完成，并以本地配置和用户最终确认为准。
+真实 DNS、HTTPS 和反向代理配置需要在 Cloudflare、服务器或控制台中完成，并以本地配置和用户最终确认为准。如果 Cloudflare 代理阻止了 Let's Encrypt HTTP-01 验证，可以临时或长期改用服务器 origin TLS：在服务器环境里设置 `BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=1`，脚本会在服务器本机生成 origin 证书并开启 443 回源；Cloudflare 需要使用 Full 模式。Full strict 模式应改用 Let's Encrypt、Cloudflare Origin CA 或手动配置受信任证书。nginx 默认启用 TLS 1.2/1.3，但不强制 `ssl_ecdh_curve`；除非明确知道源站握手需要，否则保持 `BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE` 为空。
+
+如果源站本机健康检查正常，但公网带 `activity.20050619.xyz` 的 HTTPS 回源仍返回 525 或被上游备案策略拦截，推荐使用 Cloudflare Tunnel。Docker 部署支持启用 `cloudflared` 容器：把 Tunnel token 放到服务器 `/etc/blog-dynamic-cloudflared.token`，设置 `BLOG_DYNAMIC_CLOUDFLARED_ENABLE=1` 后重新运行 `server/bootstrap-docker.sh`。Cloudflare Tunnel 公共主机名应指向 `http://127.0.0.1:8787`。真实 Tunnel token 不要写入仓库。
 
 ## 不要提交的文件
 

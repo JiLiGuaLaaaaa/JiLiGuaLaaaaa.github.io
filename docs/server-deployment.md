@@ -33,6 +33,7 @@ sudo bash server/bootstrap-docker.sh
 - 创建环境文件 `/etc/blog-dynamic.env`。
 - 构建并启动 `blog-dynamic` 容器。
 - 创建 nginx 80 端口反向代理配置，默认 `client_max_body_size` 为 `24m`，用于支持动态图片上传。
+- 如果启用 Cloudflare Tunnel，会同时启动 `blog-dynamic-cloudflared` 容器，让服务器主动出站连接 Cloudflare，不再依赖公网 80/443 入站回源。
 
 容器默认只映射到宿主机：
 
@@ -41,6 +42,34 @@ sudo bash server/bootstrap-docker.sh
 ```
 
 公开访问仍通过 nginx 或 Cloudflare 到达 `https://activity.20050619.xyz`。
+
+如果公网 80/443 被运营商、机房或备案策略拦截，推荐改用 Cloudflare Tunnel。Tunnel 的入口仍然是同一个公开地址：
+
+```text
+https://activity.20050619.xyz  ->  cloudflared  ->  http://127.0.0.1:8787
+```
+
+Cloudflare Tunnel 是服务器主动向 Cloudflare 建立出站连接，适合当前这种“源站本机健康、但 Cloudflare 带域名 SNI 回源失败”的场景。真实 Tunnel token 只放在服务器文件中，不写入仓库：
+
+```text
+/etc/blog-dynamic-cloudflared.token
+```
+
+启用方式：
+
+```bash
+export BLOG_DYNAMIC_CLOUDFLARED_ENABLE=1
+export BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE=/etc/blog-dynamic-cloudflared.token
+sudo -E bash server/bootstrap-docker.sh
+```
+
+在 Cloudflare Zero Trust 的 Tunnel 公共主机名中，把 `activity.20050619.xyz` 的服务指向：
+
+```text
+http://127.0.0.1:8787
+```
+
+如果没有 Tunnel token 文件，脚本会停止并提示，不会假装公网访问已经修好。
 
 默认动态服务公开域名是：
 
@@ -57,6 +86,7 @@ export BLOG_DYNAMIC_REPO_DIR=/opt/blog-project
 export BLOG_DYNAMIC_DATA_DIR=/var/lib/blog-dynamic
 export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
 export BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
+export BLOG_DYNAMIC_LETSENCRYPT_EMAIL=admin@example.com
 sudo -E bash server/bootstrap-docker.sh
 ```
 
@@ -107,6 +137,7 @@ export BLOG_DYNAMIC_ENV_FILE=/etc/blog-dynamic.env
 export BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 export BLOG_DYNAMIC_NODE_VERSION=22.11.0
 export BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
+export BLOG_DYNAMIC_LETSENCRYPT_EMAIL=admin@example.com
 sudo -E bash server/bootstrap-linux.sh
 ```
 
@@ -159,6 +190,19 @@ BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
+BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS="TLSv1.2 TLSv1.3"
+BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE=
+BLOG_DYNAMIC_ACME_WEBROOT=/var/www/blog-dynamic-acme
+BLOG_DYNAMIC_AUTO_ISSUE_TLS=1
+BLOG_DYNAMIC_REQUIRE_SSL=1
+BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=0
+BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR=/etc/blog-dynamic/tls
+BLOG_DYNAMIC_LETSENCRYPT_EMAIL=admin@example.com
+BLOG_DYNAMIC_LETSENCRYPT_STAGING=0
+BLOG_DYNAMIC_SSL_CERT_PATH=
+BLOG_DYNAMIC_SSL_KEY_PATH=
+BLOG_DYNAMIC_CLOUDFLARED_ENABLE=0
+BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE=/etc/blog-dynamic-cloudflared.token
 ```
 
 其中 `BLOG_DYNAMIC_ADMIN_TOKEN` 必须替换为足够长的随机值。不要把真实文件复制回仓库。
@@ -203,7 +247,17 @@ server/nginx.conf.example
 http://127.0.0.1:8787
 ```
 
-HTTPS 证书可以由 Cloudflare、服务器上的 ACME 工具或其他受信任方式管理。证书私钥不能提交。
+HTTPS 必须能从公网访问。因为博客页面本身是 `https://blog.20050619.xyz`，浏览器不会允许它调用 `http://activity.20050619.xyz` 这种不安全 API。
+
+部署脚本支持两种 TLS 配置方式：
+
+- 自动申请 Let's Encrypt：设置 `BLOG_DYNAMIC_LETSENCRYPT_EMAIL` 后运行 `server/bootstrap-docker.sh` 或 `server/bootstrap-linux.sh`。脚本会先写入 80 端口 ACME 验证配置，再用 certbot 申请证书，最后生成 443 nginx 反向代理。
+- 使用已有证书：提前把证书放在服务器上，并设置 `BLOG_DYNAMIC_SSL_CERT_PATH` 和 `BLOG_DYNAMIC_SSL_KEY_PATH`。两个路径必须同时设置。
+- 生成服务器 origin 证书：如果 Cloudflare 代理挡住了 HTTP-01 验证，可以设置 `BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=1`。脚本会在 `BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR` 下生成证书并开启 443 nginx 回源。这个方案要求 Cloudflare 使用 Full 模式；如果使用 Full strict，应改用 Let's Encrypt、Cloudflare Origin CA 或其他受信任证书。
+
+nginx 默认写入 `BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS="TLSv1.2 TLSv1.3"`，并让 `BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE` 保持为空。不要随意写死曲线；部分回源链路会因为强制曲线触发 `bad key share`，导致 525。
+
+默认脚本会要求 HTTPS 可用。如果只是临时内网测试，可以设置 `BLOG_DYNAMIC_REQUIRE_SSL=0` 允许 HTTP-only 配置。生产环境不要这样做。证书私钥不能提交。
 
 ## 静态博客构建配置
 
@@ -221,16 +275,18 @@ PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 
 - 环境文件：`/etc/blog-dynamic.env`
 - 数据目录：`/var/lib/blog-dynamic`
+- 如果使用 Cloudflare Tunnel，还需要迁移 token 文件：`/etc/blog-dynamic-cloudflared.token`
 
 建议流程：
 
 1. 在旧服务器停止服务：`sudo systemctl stop blog-dynamic`
 2. 备份 `/etc/blog-dynamic.env` 和 `/var/lib/blog-dynamic`
-3. 在新服务器放置当前仓库代码并运行 `sudo bash server/bootstrap-linux.sh`
+3. 在新服务器放置当前仓库代码并运行 `sudo bash server/bootstrap-docker.sh`
 4. 把备份的环境文件和数据目录恢复到新服务器
-5. 重启服务：`sudo systemctl restart blog-dynamic`
-6. 在 Cloudflare 或 DNS 服务商中把动态服务子域名指向新服务器公网 IP
-7. 如果公开地址没变，GitHub Actions Variable 不需要改；如果公开地址变了，修改 `PUBLIC_DYNAMIC_API_BASE` 后重新部署 GitHub Pages
+5. 如果使用 Cloudflare Tunnel，把 token 文件恢复到新服务器并设置 `BLOG_DYNAMIC_CLOUDFLARED_ENABLE=1`
+6. 重启服务或重新运行部署脚本
+7. 如果使用公网回源，在 Cloudflare 或 DNS 服务商中把动态服务子域名指向新服务器公网 IP；如果使用 Cloudflare Tunnel，在 Tunnel 公共主机名里保持 `activity.20050619.xyz -> http://127.0.0.1:8787`
+8. 如果公开地址没变，GitHub Actions Variable 不需要改；如果公开地址变了，修改 `PUBLIC_DYNAMIC_API_BASE` 后重新部署 GitHub Pages
 
 ## 验证
 

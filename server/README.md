@@ -29,6 +29,12 @@ BLOG_DYNAMIC_NODE_DIR=/opt/blog-node
 BLOG_DYNAMIC_NODE_VERSION=22.11.0
 BLOG_DYNAMIC_PUBLIC_BASE_URL=https://activity.20050619.xyz
 BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
+BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS="TLSv1.2 TLSv1.3"
+BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE=
+BLOG_DYNAMIC_LETSENCRYPT_EMAIL=admin@example.com
+BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=0
+BLOG_DYNAMIC_CLOUDFLARED_ENABLE=0
+BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE=/etc/blog-dynamic-cloudflared.token
 ```
 
 不要把真实 `.env`、数据库文件、日记内容或访问日志提交进仓库。
@@ -40,10 +46,23 @@ BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE=24m
 
 如果使用 systemd，一般修改服务器上的 `/etc/blog-dynamic.env` 后重启服务。静态博客页面要能连接这个服务，还需要在 GitHub Actions Variables 中配置 `PUBLIC_DYNAMIC_API_BASE` 并重新部署。
 
+生产环境下动态服务公开地址必须支持 HTTPS。部署脚本默认会在 `/etc/letsencrypt/live/<域名>/` 查找证书；如果设置了 `BLOG_DYNAMIC_LETSENCRYPT_EMAIL`，脚本会自动用 certbot 申请 Let's Encrypt 证书并写入 443 nginx 配置。如果你使用已有证书，则设置 `BLOG_DYNAMIC_SSL_CERT_PATH` 和 `BLOG_DYNAMIC_SSL_KEY_PATH`。如果 Cloudflare 代理挡住 HTTP-01 验证，可设置 `BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS=1` 让服务器生成 origin TLS 证书并开启 443 回源，Cloudflare 需使用 Full 模式。证书私钥只放服务器上，不要提交。默认不要设置 `BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE`，避免回源 TLS 握手因为曲线不匹配失败。
+
+如果源站本机 HTTPS 正常，但 Cloudflare 带域名 SNI 回源仍返回 525 或被上游备案策略拦截，推荐启用 Cloudflare Tunnel。把 Tunnel token 放到服务器的 `/etc/blog-dynamic-cloudflared.token`，再设置：
+
+```bash
+export BLOG_DYNAMIC_CLOUDFLARED_ENABLE=1
+export BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE=/etc/blog-dynamic-cloudflared.token
+sudo -E bash server/bootstrap-docker.sh
+```
+
+Tunnel 公共主机名里把 `activity.20050619.xyz` 指向 `http://127.0.0.1:8787`。这个方案不依赖公网 80/443 入站回源，迁移服务器时除了环境文件和数据目录，还要迁移 token 文件。真实 Tunnel token 不要写入仓库或聊天记录。
+
 可迁移部署只依赖两类服务器状态：
 
 - `/etc/blog-dynamic.env`
 - `/var/lib/blog-dynamic`
+- 如果启用 Cloudflare Tunnel：`/etc/blog-dynamic-cloudflared.token`
 
 迁移到新服务器时，把这两项迁过去，重新运行 `server/bootstrap-linux.sh`，再把动态服务域名的 DNS 指向新服务器即可。
 

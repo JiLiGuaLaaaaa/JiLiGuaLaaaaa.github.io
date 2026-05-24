@@ -349,6 +349,9 @@ corepack pnpm build
 - 默认动态服务域名使用 `activity.20050619.xyz`，但应能通过环境变量改成其他域名。
 - 动态数据目录应默认在仓库外，例如 `/var/lib/blog-dynamic`，迁移服务器时只需要迁移该数据目录和服务环境变量。
 - 允许 Cloudflare 继续作为 DNS 和 HTTPS 前置；如果只配置 nginx 80 端口，需在文档中说明 Cloudflare 代理或 TLS 的关系。
+- 动态服务公开地址使用 `https://` 时，动态服务服务器必须提供可用的 443 HTTPS 反向代理；部署脚本应支持自动识别 `/etc/letsencrypt/live/<域名>/` 证书、通过 `BLOG_DYNAMIC_LETSENCRYPT_EMAIL` 自动申请证书，或通过 `BLOG_DYNAMIC_SSL_CERT_PATH` / `BLOG_DYNAMIC_SSL_KEY_PATH` 使用已有证书。
+- 如果 Cloudflare 代理阻止 Let's Encrypt HTTP-01 验证，可以使用服务器 origin TLS 兜底，但自签 origin 证书只允许在用户明确批准 Cloudflare `Full` 模式安全取舍后启用；更严格的生产方案应优先使用 Let's Encrypt、Cloudflare Origin CA 或其他受信任证书并配合 `Full strict`。
+- 如果源站本机 nginx/TLS 正常，但公网通过动态服务域名 SNI 回源仍返回 525 或出现备案/上游策略拦截，应优先使用 Cloudflare Tunnel，让服务器主动出站连接 Cloudflare。Tunnel token 只能放在服务器本地文件中，例如 `/etc/blog-dynamic-cloudflared.token`，不得写入仓库、文档、前端构建产物或聊天记录。
 
 ## 17. 本次动态图片与日记本体验升级
 

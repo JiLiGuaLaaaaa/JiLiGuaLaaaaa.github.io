@@ -39,6 +39,17 @@ CONFIGURE_NGINX="${BLOG_DYNAMIC_CONFIGURE_NGINX:-1}"
 ENABLE_SERVICE="${BLOG_DYNAMIC_ENABLE_SERVICE:-1}"
 GENERATE_PASSWORDS="${BLOG_DYNAMIC_GENERATE_PASSWORDS:-0}"
 NGINX_CLIENT_MAX_BODY_SIZE="${BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE:-24m}"
+NGINX_SSL_PROTOCOLS="${BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS:-TLSv1.2 TLSv1.3}"
+NGINX_SSL_ECDH_CURVE="${BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE:-}"
+SSL_CERT_PATH="${BLOG_DYNAMIC_SSL_CERT_PATH:-}"
+SSL_KEY_PATH="${BLOG_DYNAMIC_SSL_KEY_PATH:-}"
+LETSENCRYPT_EMAIL="${BLOG_DYNAMIC_LETSENCRYPT_EMAIL:-}"
+LETSENCRYPT_STAGING="${BLOG_DYNAMIC_LETSENCRYPT_STAGING:-0}"
+AUTO_ISSUE_TLS="${BLOG_DYNAMIC_AUTO_ISSUE_TLS:-1}"
+REQUIRE_SSL="${BLOG_DYNAMIC_REQUIRE_SSL:-1}"
+ACME_WEBROOT="${BLOG_DYNAMIC_ACME_WEBROOT:-/var/www/blog-dynamic-acme}"
+GENERATE_SELF_SIGNED_TLS="${BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS:-0}"
+SELF_SIGNED_CERT_DIR="${BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR:-/etc/blog-dynamic/tls}"
 
 strip_url_host() {
   local value="$1"
@@ -281,6 +292,106 @@ ensure_prerequisites() {
   ensure_node_runtime
 }
 
+resolve_ssl_paths() {
+  local server_name="${1:-}"
+  if [ -n "$SSL_CERT_PATH" ] || [ -n "$SSL_KEY_PATH" ]; then
+    [ -n "$SSL_CERT_PATH" ] && [ -n "$SSL_KEY_PATH" ] || fail "Set both BLOG_DYNAMIC_SSL_CERT_PATH and BLOG_DYNAMIC_SSL_KEY_PATH."
+    [ -f "$SSL_CERT_PATH" ] && [ -f "$SSL_KEY_PATH" ] || fail "Configured SSL certificate paths do not exist."
+    return 0
+  fi
+
+  if [ -n "$server_name" ]; then
+    local default_cert="/etc/letsencrypt/live/${server_name}/fullchain.pem"
+    local default_key="/etc/letsencrypt/live/${server_name}/privkey.pem"
+    if [ -f "$default_cert" ] && [ -f "$default_key" ]; then
+      SSL_CERT_PATH="$default_cert"
+      SSL_KEY_PATH="$default_key"
+    fi
+  fi
+}
+
+ensure_certbot() {
+  if command -v certbot >/dev/null 2>&1; then
+    return 0
+  fi
+  log "Installing certbot."
+  install_packages certbot
+}
+
+ensure_tls_certificate() {
+  local server_name="${1:-}"
+
+  resolve_ssl_paths "$server_name"
+  if [ -n "$SSL_CERT_PATH" ] && [ -n "$SSL_KEY_PATH" ] && [ -f "$SSL_CERT_PATH" ] && [ -f "$SSL_KEY_PATH" ]; then
+    return 0
+  fi
+
+  [ "$AUTO_ISSUE_TLS" = "1" ] || {
+    [ "$REQUIRE_SSL" = "1" ] && fail "No TLS certificate found for ${server_name}. Set BLOG_DYNAMIC_SSL_CERT_PATH/BLOG_DYNAMIC_SSL_KEY_PATH or BLOG_DYNAMIC_LETSENCRYPT_EMAIL."
+    return 0
+  }
+
+  [ -n "$LETSENCRYPT_EMAIL" ] || {
+    [ "$REQUIRE_SSL" = "1" ] && fail "No TLS certificate found for ${server_name}. Set BLOG_DYNAMIC_LETSENCRYPT_EMAIL or provide BLOG_DYNAMIC_SSL_CERT_PATH/BLOG_DYNAMIC_SSL_KEY_PATH."
+    return 0
+  }
+
+  ensure_certbot
+  install -d -m 0755 "$ACME_WEBROOT"
+
+  local certbot_args=(
+    certonly
+    --webroot
+    -w "$ACME_WEBROOT"
+    -d "$server_name"
+    --email "$LETSENCRYPT_EMAIL"
+    --agree-tos
+    --non-interactive
+    --keep-until-expiring
+    --rsa-key-size 4096
+    --no-eff-email
+  )
+  if [ "$LETSENCRYPT_STAGING" = "1" ]; then
+    certbot_args+=(--staging)
+  fi
+
+  log "Requesting TLS certificate for ${server_name}."
+  certbot "${certbot_args[@]}"
+  resolve_ssl_paths "$server_name"
+  [ -n "$SSL_CERT_PATH" ] && [ -n "$SSL_KEY_PATH" ] && [ -f "$SSL_CERT_PATH" ] && [ -f "$SSL_KEY_PATH" ] || fail "TLS certificate request finished but the certificate files were not found."
+}
+
+ensure_self_signed_tls_certificate() {
+  local server_name="${1:-}"
+  [ "$GENERATE_SELF_SIGNED_TLS" = "1" ] || return 1
+
+  command -v openssl >/dev/null 2>&1 || install_packages openssl
+  install -d -m 0750 "$SELF_SIGNED_CERT_DIR"
+
+  local cert_path key_path
+  cert_path="${SELF_SIGNED_CERT_DIR}/${server_name}.crt"
+  key_path="${SELF_SIGNED_CERT_DIR}/${server_name}.key"
+
+  if [ ! -f "$cert_path" ] || [ ! -f "$key_path" ]; then
+    log "Generating self-signed origin TLS certificate for ${server_name}."
+    openssl req \
+      -x509 \
+      -newkey rsa:4096 \
+      -sha256 \
+      -days 825 \
+      -nodes \
+      -keyout "$key_path" \
+      -out "$cert_path" \
+      -subj "/CN=${server_name}" \
+      -addext "subjectAltName=DNS:${server_name}" >/dev/null 2>&1
+    chmod 0644 "$cert_path"
+    chmod 0600 "$key_path"
+  fi
+
+  SSL_CERT_PATH="$cert_path"
+  SSL_KEY_PATH="$key_path"
+}
+
 ensure_user_and_dirs() {
   if ! id "$SERVICE_USER" >/dev/null 2>&1; then
     local nologin_shell
@@ -308,6 +419,17 @@ write_environment_file() {
   DATA_DIR="$(env_or_existing_or_default BLOG_DYNAMIC_DATA_DIR "$DATA_DIR")"
   PUBLIC_BASE_URL="$(env_or_existing_or_default BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL")"
   NGINX_CLIENT_MAX_BODY_SIZE="$(env_or_existing_or_default BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE")"
+  NGINX_SSL_PROTOCOLS="$(env_or_existing_or_default BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS "$NGINX_SSL_PROTOCOLS")"
+  NGINX_SSL_ECDH_CURVE="$(env_or_existing_or_default BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE "$NGINX_SSL_ECDH_CURVE")"
+  ACME_WEBROOT="$(env_or_existing_or_default BLOG_DYNAMIC_ACME_WEBROOT "$ACME_WEBROOT")"
+  LETSENCRYPT_EMAIL="$(env_or_existing_or_default BLOG_DYNAMIC_LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL")"
+  LETSENCRYPT_STAGING="$(env_or_existing_or_default BLOG_DYNAMIC_LETSENCRYPT_STAGING "$LETSENCRYPT_STAGING")"
+  AUTO_ISSUE_TLS="$(env_or_existing_or_default BLOG_DYNAMIC_AUTO_ISSUE_TLS "$AUTO_ISSUE_TLS")"
+  REQUIRE_SSL="$(env_or_existing_or_default BLOG_DYNAMIC_REQUIRE_SSL "$REQUIRE_SSL")"
+  GENERATE_SELF_SIGNED_TLS="$(env_or_existing_or_default BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS "$GENERATE_SELF_SIGNED_TLS")"
+  SELF_SIGNED_CERT_DIR="$(env_or_existing_or_default BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR "$SELF_SIGNED_CERT_DIR")"
+  SSL_CERT_PATH="$(env_or_existing_or_default BLOG_DYNAMIC_SSL_CERT_PATH "$SSL_CERT_PATH")"
+  SSL_KEY_PATH="$(env_or_existing_or_default BLOG_DYNAMIC_SSL_KEY_PATH "$SSL_KEY_PATH")"
 
   local admin_token post_password diary_password temp_file
   admin_token="$(secret_or_existing_or_generate BLOG_DYNAMIC_ADMIN_TOKEN)"
@@ -325,6 +447,17 @@ write_environment_file() {
     write_env_line BLOG_DYNAMIC_DATA_DIR "$DATA_DIR"
     write_env_line BLOG_DYNAMIC_PUBLIC_BASE_URL "$PUBLIC_BASE_URL"
     write_env_line BLOG_DYNAMIC_NGINX_CLIENT_MAX_BODY_SIZE "$NGINX_CLIENT_MAX_BODY_SIZE"
+    write_env_line BLOG_DYNAMIC_NGINX_SSL_PROTOCOLS "$NGINX_SSL_PROTOCOLS"
+    write_env_line BLOG_DYNAMIC_NGINX_SSL_ECDH_CURVE "$NGINX_SSL_ECDH_CURVE"
+    write_env_line BLOG_DYNAMIC_ACME_WEBROOT "$ACME_WEBROOT"
+    write_env_line BLOG_DYNAMIC_LETSENCRYPT_EMAIL "$LETSENCRYPT_EMAIL"
+    write_env_line BLOG_DYNAMIC_LETSENCRYPT_STAGING "$LETSENCRYPT_STAGING"
+    write_env_line BLOG_DYNAMIC_AUTO_ISSUE_TLS "$AUTO_ISSUE_TLS"
+    write_env_line BLOG_DYNAMIC_REQUIRE_SSL "$REQUIRE_SSL"
+    write_env_line BLOG_DYNAMIC_GENERATE_SELF_SIGNED_TLS "$GENERATE_SELF_SIGNED_TLS"
+    write_env_line BLOG_DYNAMIC_SELF_SIGNED_CERT_DIR "$SELF_SIGNED_CERT_DIR"
+    write_env_line BLOG_DYNAMIC_SSL_CERT_PATH "$SSL_CERT_PATH"
+    write_env_line BLOG_DYNAMIC_SSL_KEY_PATH "$SSL_KEY_PATH"
   } >"$temp_file"
 
   install -m 0600 -o root -g root "$temp_file" "$ENV_FILE"
@@ -360,12 +493,93 @@ EOF
   chmod 0644 "$unit_file"
 }
 
+render_nginx_config() {
+  local target="$1"
+  local server_name="$2"
+  local proxy_target="$3"
+  local include_ssl="${4:-0}"
+
+  cat >"$target" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${server_name};
+
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root ${ACME_WEBROOT};
+        default_type text/plain;
+        try_files \$uri =404;
+    }
+
+    location / {
+        proxy_pass http://${proxy_target};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+
+  if [ "$include_ssl" = "1" ]; then
+    cat >>"$target" <<EOF
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    listen 2053 ssl http2;
+    listen [::]:2053 ssl http2;
+    listen 2083 ssl http2;
+    listen [::]:2083 ssl http2;
+    listen 2087 ssl http2;
+    listen [::]:2087 ssl http2;
+    listen 2096 ssl http2;
+    listen [::]:2096 ssl http2;
+    listen 8443 ssl http2;
+    listen [::]:8443 ssl http2;
+    server_name ${server_name};
+
+    ssl_certificate ${SSL_CERT_PATH};
+    ssl_certificate_key ${SSL_KEY_PATH};
+    ssl_protocols ${NGINX_SSL_PROTOCOLS};
+EOF
+    if [ -n "$NGINX_SSL_ECDH_CURVE" ]; then
+      cat >>"$target" <<EOF
+    ssl_ecdh_curve ${NGINX_SSL_ECDH_CURVE};
+EOF
+    fi
+    cat >>"$target" <<EOF
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
+
+    location / {
+        proxy_pass http://${proxy_target};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+  fi
+}
+
 write_nginx_config() {
   [ "$CONFIGURE_NGINX" = "1" ] || return 0
 
-  local server_name target link
+  local server_name target link proxy_target have_ssl
   server_name="$(strip_url_host "${BLOG_DYNAMIC_NGINX_SERVER_NAME:-$DYNAMIC_DOMAIN}")"
   [ -n "$server_name" ] || fail "BLOG_DYNAMIC_DOMAIN cannot be empty when nginx is enabled."
+  proxy_target="${BIND_HOST}:${BIND_PORT}"
+  resolve_ssl_paths "$server_name"
 
   if [ -d /etc/nginx/sites-available ] && [ -d /etc/nginx/sites-enabled ]; then
     target="/etc/nginx/sites-available/${SERVICE_NAME}.conf"
@@ -376,29 +590,37 @@ write_nginx_config() {
     link=""
   fi
 
-  cat >"$target" <<EOF
-server {
-    listen 80;
-    server_name ${server_name};
+  have_ssl=0
+  if [ -n "$SSL_CERT_PATH" ] && [ -n "$SSL_KEY_PATH" ] && [ -f "$SSL_CERT_PATH" ] && [ -f "$SSL_KEY_PATH" ]; then
+    have_ssl=1
+  elif [ "$GENERATE_SELF_SIGNED_TLS" = "1" ]; then
+    ensure_self_signed_tls_certificate "$server_name"
+    have_ssl=1
+  elif [ "$AUTO_ISSUE_TLS" = "1" ] && [ -n "$LETSENCRYPT_EMAIL" ]; then
+    render_nginx_config "$target" "$server_name" "$proxy_target" 0
+    if [ -n "$link" ]; then
+      ln -sfn "$target" "$link"
+    fi
+    nginx -t
+    systemctl enable --now nginx >/dev/null 2>&1 || true
+    systemctl reload nginx >/dev/null 2>&1 || true
+    ensure_tls_certificate "$server_name"
+    have_ssl=1
+  elif [ "$REQUIRE_SSL" = "1" ]; then
+    fail "No TLS certificate found for ${server_name}. Set BLOG_DYNAMIC_LETSENCRYPT_EMAIL or BLOG_DYNAMIC_SSL_CERT_PATH/BLOG_DYNAMIC_SSL_KEY_PATH."
+  fi
 
-    client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};
-
-    location / {
-        proxy_pass http://${BIND_HOST}:${BIND_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Real-IP \$remote_addr;
-    }
-}
-EOF
-
+  render_nginx_config "$target" "$server_name" "$proxy_target" "$have_ssl"
   if [ -n "$link" ]; then
     ln -sfn "$target" "$link"
   fi
 
   nginx -t
+  if [ "$have_ssl" = "1" ]; then
+    log "HTTPS enabled for ${server_name} using ${SSL_CERT_PATH}."
+  else
+    log "No TLS certificate found for ${server_name}; writing HTTP-only nginx config."
+  fi
 }
 
 restart_services() {

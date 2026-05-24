@@ -24,3 +24,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  cloudflared:
+    profiles:
+      - tunnel
+    image: cloudflare/cloudflared:latest
+    container_name: blog-dynamic-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token-file
+      - /run/secrets/cloudflared_token
+    volumes:
+      - ${BLOG_DYNAMIC_CLOUDFLARED_TOKEN_FILE:-/etc/blog-dynamic-cloudflared.token}:/run/secrets/cloudflared_token:ro
+    depends_on:
+      blog-dynamic:
+        condition: service_healthy
