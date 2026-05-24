@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -93,7 +93,7 @@ const applyCors = (request, response) => {
     response.setHeader("Access-Control-Allow-Origin", origin);
     response.setHeader("Vary", "Origin");
   }
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
 };
 
@@ -186,6 +186,12 @@ const requireDiaryAuth = (request, response) => {
   return false;
 };
 
+const requireDynamicAuth = (request, response) => {
+  if (isAuthorized(request) || isDynamicSessionAuthorized(request)) return true;
+  sendError(response, 401, "Unauthorized.");
+  return false;
+};
+
 const ensureDataDir = async () => {
   await mkdir(dataDir, { recursive: true });
 };
@@ -251,6 +257,45 @@ const cleanMultiline = (value, maxLength) =>
     .replace(/\r/g, "\n")
     .trim()
     .slice(0, maxLength);
+
+const cleanId = (value) => cleanText(value, 120).replace(/[^A-Za-z0-9_-]/g, "");
+
+const parseBoundaryTime = (value, endOfDay = false) => {
+  const text = cleanText(value, 32);
+  if (!text) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(text)
+    ? `${text}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}`
+    : text;
+  const date = new Date(normalized);
+  const time = date.getTime();
+  return Number.isNaN(time) ? null : time;
+};
+
+const isWithinDateRange = (record, fromTime, toTime) => {
+  const time = new Date(record.createdAt || record.updatedAt || 0).getTime();
+  if (Number.isNaN(time)) return false;
+  if (fromTime !== null && time < fromTime) return false;
+  if (toTime !== null && time > toTime) return false;
+  return true;
+};
+
+const buildListFilters = (url) => ({
+  query: cleanText(url.searchParams.get("q"), 120).toLowerCase(),
+  title: cleanText(url.searchParams.get("title"), 120).toLowerCase(),
+  content: cleanText(url.searchParams.get("content"), 120).toLowerCase(),
+  fromTime: parseBoundaryTime(url.searchParams.get("from"), false),
+  toTime: parseBoundaryTime(url.searchParams.get("to"), true)
+});
+
+const filterTextRecord = (record, filters) => {
+  const title = String(record.title || "").toLowerCase();
+  const content = String(record.content || "").toLowerCase();
+  if (filters.query && !`${title}\n${content}`.includes(filters.query)) return false;
+  if (filters.title && !title.includes(filters.title)) return false;
+  if (filters.content && !content.includes(filters.content)) return false;
+  if (!isWithinDateRange(record, filters.fromTime, filters.toTime)) return false;
+  return true;
+};
 
 const normalizePath = (value) => {
   const text = String(value || "/").trim();
@@ -428,27 +473,31 @@ const handleStatsWrite = async (request, response) => {
   });
 };
 
+const getListLimit = (url, fallback = 24, max = 100) =>
+  Math.max(1, Math.min(max, Number.parseInt(url.searchParams.get("limit") || String(fallback), 10) || fallback));
+
 const handleLifeRead = async (response, url) => {
-  const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
-  const records = await readPublicDynamicRecords(limit);
+  const limit = getListLimit(url, 6, 100);
+  const records = await readPublicDynamicRecords(limit, buildListFilters(url));
   sendJson(response, 200, { ok: true, records });
 };
 
-const readPublicDynamicRecords = async (limit) => {
+const readPublicDynamicRecords = async (limit, filters = buildListFilters(new URL("http://blog.local/"))) => {
   const [dynamicRecords, legacyLifeRecords] = await Promise.all([
     readJsonFile(files.dynamics, () => []),
     readJsonFile(files.life, () => [])
   ]);
   return [...dynamicRecords, ...legacyLifeRecords]
     .filter((record) => record.status === "published")
+    .filter((record) => filterTextRecord(record, filters))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .slice(0, limit)
     .map(publicDynamicRecord);
 };
 
 const handleDynamicRead = async (response, url) => {
-  const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
-  const records = await readPublicDynamicRecords(limit);
+  const limit = getListLimit(url, 24, 100);
+  const records = await readPublicDynamicRecords(limit, buildListFilters(url));
   sendJson(response, 200, { ok: true, records });
 };
 
@@ -488,11 +537,108 @@ const handleDynamicWrite = async (request, response) => {
   sendJson(response, 201, { ok: true, record: publicDynamicRecord(record) });
 };
 
+const removeDynamicImageFiles = async (images) => {
+  if (!Array.isArray(images) || images.length === 0) return;
+  const uploadsRoot = resolve(files.uploads);
+  await Promise.allSettled(
+    images.map(async (image) => {
+      const src = String(image?.src || "");
+      if (!src.startsWith("/uploads/")) return;
+      const relativePath = src.replace(/^\/uploads\/+/, "");
+      const filePath = resolve(uploadsRoot, relativePath);
+      if (filePath === uploadsRoot || !filePath.startsWith(`${uploadsRoot}${sep}`)) return;
+      await unlink(filePath);
+    })
+  );
+};
+
+const findWritableDynamicCollection = async (id) => {
+  const dynamicRecords = await readJsonFile(files.dynamics, () => []);
+  const dynamicIndex = dynamicRecords.findIndex((record) => record.id === id);
+  if (dynamicIndex >= 0) {
+    return { filePath: files.dynamics, records: dynamicRecords, index: dynamicIndex };
+  }
+
+  const legacyLifeRecords = await readJsonFile(files.life, () => []);
+  const legacyIndex = legacyLifeRecords.findIndex((record) => record.id === id);
+  if (legacyIndex >= 0) {
+    return { filePath: files.life, records: legacyLifeRecords, index: legacyIndex };
+  }
+
+  return null;
+};
+
+const handleDynamicUpdate = async (request, response, id) => {
+  if (!requireDynamicAuth(request, response)) return;
+  const body = await readBody(request);
+  const collection = await findWritableDynamicCollection(id);
+  if (!collection) {
+    sendError(response, 404, "Dynamic record not found.");
+    return;
+  }
+
+  const { filePath, records, index } = collection;
+  const current = records[index];
+  const title = cleanText(body.title, 80);
+  const content = cleanMultiline(body.content, 1000);
+  const currentImages = Array.isArray(current.images) ? current.images : [];
+  const existingImages = Array.isArray(body.existingImages)
+    ? currentImages.filter((image) =>
+        body.existingImages.some((candidate) => String(candidate?.src || candidate || "") === image.src)
+      )
+    : currentImages;
+  const rawImages = Array.isArray(body.images) ? body.images : [];
+  if (existingImages.length + rawImages.length > maxDynamicImages) {
+    sendError(response, 400, `At most ${maxDynamicImages} images can be attached.`);
+    return;
+  }
+  const addedImages = await saveDynamicImages(rawImages, id);
+  const images = [...existingImages, ...addedImages].slice(0, maxDynamicImages);
+
+  if (!content && images.length === 0) {
+    sendError(response, 400, "Content or image is required.");
+    return;
+  }
+
+  const removedImages = currentImages.filter(
+    (image) => !images.some((candidate) => candidate.src === image.src)
+  );
+  const updated = {
+    ...current,
+    title,
+    content,
+    mood: cleanText(body.mood, 24),
+    images,
+    status: body.status === "draft" && isAuthorized(request) ? "draft" : "published",
+    updatedAt: nowIso()
+  };
+  records[index] = updated;
+  await writeJsonFile(filePath, records);
+  await removeDynamicImageFiles(removedImages);
+  sendJson(response, 200, { ok: true, record: publicDynamicRecord(updated) });
+};
+
+const handleDynamicDelete = async (request, response, id) => {
+  if (!requireDynamicAuth(request, response)) return;
+  const collection = await findWritableDynamicCollection(id);
+  if (!collection) {
+    sendError(response, 404, "Dynamic record not found.");
+    return;
+  }
+  const { filePath, records, index } = collection;
+  const [removed] = records.splice(index, 1);
+  await writeJsonFile(filePath, records);
+  await removeDynamicImageFiles(removed?.images || []);
+  sendJson(response, 200, { ok: true });
+};
+
 const handleLegacyLifeRead = async (response, url) => {
-  const limit = Math.max(1, Math.min(24, Number.parseInt(url.searchParams.get("limit") || "6", 10) || 6));
+  const limit = getListLimit(url, 6, 100);
+  const filters = buildListFilters(url);
   const records = await readJsonFile(files.life, () => []);
   const published = records
     .filter((record) => record.status === "published")
+    .filter((record) => filterTextRecord(record, filters))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .slice(0, limit)
     .map(publicLifeRecord);
@@ -516,11 +662,9 @@ const handleDynamicSessionCreate = async (request, response) => {
 
 const handleDiaryRead = async (request, response, url) => {
   if (!requireDiaryAuth(request, response)) return;
-  const query = cleanText(url.searchParams.get("q"), 120).toLowerCase();
+  const filters = buildListFilters(url);
   const entries = await readJsonFile(files.diary, () => []);
-  const filteredEntries = query
-    ? entries.filter((entry) => `${entry.title || ""}\n${entry.content || ""}`.toLowerCase().includes(query))
-    : entries;
+  const filteredEntries = entries.filter((entry) => filterTextRecord(entry, filters));
   sendJson(response, 200, {
     ok: true,
     entries: filteredEntries
@@ -549,7 +693,7 @@ const handleDiarySessionCreate = async (request, response) => {
 const handleDiaryWrite = async (request, response) => {
   if (!requireDiaryAuth(request, response)) return;
   const body = await readBody(request);
-  const title = cleanText(body.title, 80) || "未命名日记";
+  const title = cleanText(body.title, 80);
   const content = cleanMultiline(body.content, 10000);
 
   if (!content) {
@@ -568,6 +712,56 @@ const handleDiaryWrite = async (request, response) => {
   entries.unshift(entry);
   await writeJsonFile(files.diary, entries);
   sendJson(response, 201, { ok: true, entry: { id: entry.id, title: entry.title, createdAt: entry.createdAt } });
+};
+
+const handleDiaryUpdate = async (request, response, id) => {
+  if (!requireDiaryAuth(request, response)) return;
+  const body = await readBody(request);
+  const title = cleanText(body.title, 80);
+  const content = cleanMultiline(body.content, 10000);
+  if (!content) {
+    sendError(response, 400, "Content is required.");
+    return;
+  }
+
+  const entries = await readJsonFile(files.diary, () => []);
+  const index = entries.findIndex((entry) => entry.id === id);
+  if (index < 0) {
+    sendError(response, 404, "Diary entry not found.");
+    return;
+  }
+
+  const updated = {
+    ...entries[index],
+    title,
+    content,
+    updatedAt: nowIso()
+  };
+  entries[index] = updated;
+  await writeJsonFile(files.diary, entries);
+  sendJson(response, 200, {
+    ok: true,
+    entry: {
+      id: updated.id,
+      title: updated.title,
+      content: updated.content,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt
+    }
+  });
+};
+
+const handleDiaryDelete = async (request, response, id) => {
+  if (!requireDiaryAuth(request, response)) return;
+  const entries = await readJsonFile(files.diary, () => []);
+  const index = entries.findIndex((entry) => entry.id === id);
+  if (index < 0) {
+    sendError(response, 404, "Diary entry not found.");
+    return;
+  }
+  entries.splice(index, 1);
+  await writeJsonFile(files.diary, entries);
+  sendJson(response, 200, { ok: true });
 };
 
 const adminHtml = () => `<!doctype html>
@@ -704,6 +898,15 @@ const handleRequest = async (request, response) => {
       await handleDynamicWrite(request, response);
       return;
     }
+    const dynamicRecordMatch = url.pathname.match(/^\/api\/dynamics\/([^/]+)$/);
+    if (dynamicRecordMatch && (request.method === "PUT" || request.method === "PATCH")) {
+      await handleDynamicUpdate(request, response, cleanId(dynamicRecordMatch[1]));
+      return;
+    }
+    if (dynamicRecordMatch && request.method === "DELETE") {
+      await handleDynamicDelete(request, response, cleanId(dynamicRecordMatch[1]));
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/life") {
       await handleLifeWrite(request, response);
       return;
@@ -718,6 +921,15 @@ const handleRequest = async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/diary") {
       await handleDiaryWrite(request, response);
+      return;
+    }
+    const diaryEntryMatch = url.pathname.match(/^\/api\/diary\/([^/]+)$/);
+    if (diaryEntryMatch && (request.method === "PUT" || request.method === "PATCH")) {
+      await handleDiaryUpdate(request, response, cleanId(diaryEntryMatch[1]));
+      return;
+    }
+    if (diaryEntryMatch && request.method === "DELETE") {
+      await handleDiaryDelete(request, response, cleanId(diaryEntryMatch[1]));
       return;
     }
     if (request.method === "GET" && url.pathname.startsWith("/uploads/")) {

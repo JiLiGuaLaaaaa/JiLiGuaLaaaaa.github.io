@@ -101,6 +101,15 @@ sudo -E bash server/bootstrap-docker.sh
 
 这些真实值只应存在于目标服务器环境中，不要复制回仓库。
 
+如果仓库里的 `server/index.mjs`、动态图片处理、动态/日记编辑删除接口或 Docker 配置发生变化，服务器需要重新同步代码并重建容器：
+
+```bash
+cd /opt/blog-project/server
+sudo docker compose up -d --build
+```
+
+只修改 Astro 前端页面时，不需要重建服务器容器，只需要重新触发 GitHub Actions 发布 GitHub Pages。
+
 ## 非 Docker 备用脚本
 
 仓库也保留通用 Linux 直装脚本：
@@ -296,6 +305,7 @@ PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 GET https://activity.20050619.xyz/health
 GET https://activity.20050619.xyz/api/stats?path=/blog/
 GET https://activity.20050619.xyz/api/dynamics?limit=6
+GET https://activity.20050619.xyz/api/dynamics?title=关键词&from=2026-01-01&to=2026-12-31
 GET https://activity.20050619.xyz/api/life?limit=6
 GET https://activity.20050619.xyz/uploads/dynamics/<example-image>
 ```
@@ -306,4 +316,4 @@ GET https://activity.20050619.xyz/uploads/dynamics/<example-image>
 Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
 ```
 
-不要在公开页面、README、提交记录或工单中粘贴真实 Token。
+动态和日记的编辑、删除接口也属于受保护接口。网页端会先通过发布密码或日记密码换取短期会话，再调用对应的 `PUT/PATCH` 或 `DELETE` 接口；直接用命令行验证时可以使用管理 Token，但不要在公开页面、README、提交记录或工单中粘贴真实 Token。

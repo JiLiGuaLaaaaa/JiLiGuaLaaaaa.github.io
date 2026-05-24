@@ -35,14 +35,21 @@
    sudo docker compose up -d
 
 三、更新服务
-如果改了 server 里的代码或 Docker 配置：
+如果改了 server 里的代码、动态图片处理、动态/日记编辑删除接口或 Docker 配置：
 
 cd /opt/blog-project/server
 sudo docker compose up -d --build
 
+如果只改了 Astro 前端页面，不需要重建服务器容器，需要重新触发 GitHub Actions 发布静态站。
+
 四、检查服务
 1. 检查健康接口：
    curl http://127.0.0.1:8787/health
+
+   公网检查：
+   curl -i https://activity.20050619.xyz/health
+   curl -i "https://activity.20050619.xyz/api/dynamics?limit=1"
+   curl -i "https://activity.20050619.xyz/api/dynamics?title=关键词&from=2026-01-01&to=2026-12-31"
 
 2. 检查 nginx 配置：
    sudo nginx -t
@@ -53,6 +60,10 @@ sudo docker compose up -d --build
 4. 如果图片上传失败，检查 nginx 上传限制：
    sudo grep -R "client_max_body_size" /etc/nginx
    推荐至少是 24m
+
+5. 动态和日记的编辑、删除接口都是受保护接口。
+   网页端会先通过发布密码或日记密码换取短期会话。
+   命令行调试时可以使用管理 Token，但不要把真实 Token 发到公开聊天、README 或提交记录里。
 
 五、修改密码
 编辑这个文件：

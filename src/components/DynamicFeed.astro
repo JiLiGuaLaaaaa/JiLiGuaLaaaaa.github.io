@@ -19,13 +19,36 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       <p class="dynamic-feed__eyebrow">Dynamic</p>
       <h2 id="dynamic-feed-title">动态</h2>
     </div>
-    <button class="dynamic-compose-entry" type="button" aria-label="发布动态" data-dynamic-open>
+    <button class="dynamic-compose-entry" type="button" aria-label="管理动态" data-dynamic-open>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 20h4.5L19.2 9.3a2.1 2.1 0 0 0 0-3L17.7 4.8a2.1 2.1 0 0 0-3 0L4 15.5V20Z" />
         <path d="M13.7 5.8l4.5 4.5" />
       </svg>
     </button>
   </div>
+
+  <form class="dynamic-filter" data-dynamic-filter autocomplete="off">
+    <label>
+      <span>标题</span>
+      <input type="search" placeholder="标题关键字" data-dynamic-filter-title />
+    </label>
+    <label>
+      <span>正文</span>
+      <input type="search" placeholder="正文关键字" data-dynamic-filter-content />
+    </label>
+    <label>
+      <span>开始</span>
+      <input type="date" data-dynamic-filter-from />
+    </label>
+    <label>
+      <span>结束</span>
+      <input type="date" data-dynamic-filter-to />
+    </label>
+    <div class="dynamic-filter__actions">
+      <button type="submit">检索</button>
+      <button type="reset">重置</button>
+    </div>
+  </form>
 
   <div class="dynamic-feed__status" data-dynamic-feed-status>正在读取公开动态。</div>
   <div class="dynamic-feed__list" data-dynamic-feed-list hidden></div>
@@ -38,16 +61,11 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       aria-modal="true"
       aria-labelledby="dynamic-password-modal-title"
     >
-      <button
-        class="dynamic-password-modal__close"
-        type="button"
-        aria-label="关闭"
-        data-dynamic-password-close
-      >
+      <button class="dynamic-password-modal__close" type="button" aria-label="关闭" data-dynamic-password-close>
         ×
       </button>
       <form class="dynamic-password-modal__form" data-dynamic-password-form autocomplete="off">
-        <h3 id="dynamic-password-modal-title">确认发布动态</h3>
+        <h3 id="dynamic-password-modal-title">动态管理</h3>
         <p class="dynamic-password-modal__hint">请输入发布密码后继续。</p>
         <label>
           <span>发布密码</span>
@@ -62,21 +80,28 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     </section>
   </div>
 
-  <div class="dynamic-editor-modal" data-dynamic-editor-modal hidden>
-    <div class="dynamic-editor-modal__backdrop"></div>
+  <div class="dynamic-manager-modal" data-dynamic-manager-modal hidden>
+    <div class="dynamic-manager-modal__backdrop"></div>
     <section
-      class="dynamic-editor-modal__panel"
+      class="dynamic-manager-modal__panel"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="dynamic-editor-title"
+      aria-labelledby="dynamic-manager-title"
     >
-      <button class="dynamic-editor-modal__close" type="button" aria-label="关闭" data-dynamic-editor-close>
+      <button class="dynamic-manager-modal__close" type="button" aria-label="关闭" data-dynamic-manager-close>
         ×
       </button>
+      <div class="dynamic-manager__top">
+        <h3 id="dynamic-manager-title" data-dynamic-editor-heading>发布动态</h3>
+        <button type="button" data-dynamic-new>新动态</button>
+      </div>
       <form class="dynamic-composer" data-dynamic-form autocomplete="off">
-        <h3 id="dynamic-editor-title">发布动态</h3>
+        <label>
+          <span>标题</span>
+          <input maxlength="80" placeholder="可不填" data-dynamic-title />
+        </label>
         <label class="dynamic-composer__content">
-          <span>说点什么</span>
+          <span>正文</span>
           <textarea
             name="content"
             rows="5"
@@ -85,6 +110,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
             data-dynamic-content
           ></textarea>
         </label>
+        <div class="dynamic-existing-preview" data-dynamic-existing-preview hidden></div>
         <label class="dynamic-dropzone" data-dynamic-dropzone>
           <input type="file" accept="image/png,image/jpeg,image/webp" multiple data-dynamic-images />
           <span>拖入图片，或点击选择</span>
@@ -95,6 +121,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         </div>
         <p class="dynamic-composer__status" data-dynamic-form-status></p>
       </form>
+      <div class="dynamic-manager__list" data-dynamic-manager-list></div>
     </section>
   </div>
 </section>
@@ -114,6 +141,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     content?: string;
     images?: DynamicImage[];
     createdAt?: string;
+    updatedAt?: string;
   };
 
   type PendingImage = {
@@ -134,7 +162,9 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     return new Intl.DateTimeFormat("zh-CN", {
       year: "numeric",
       month: "2-digit",
-      day: "2-digit"
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
     }).format(date);
   };
 
@@ -194,116 +224,74 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       reader.readAsDataURL(file);
     });
 
-  const renderDynamicFeed = async (root: HTMLElement) => {
+  const setupDynamicFeed = (root: HTMLElement) => {
     const apiBase = root.dataset.apiBase || "";
     const limit = Number.parseInt(root.dataset.limit || "12", 10) || 12;
-    const status = root.querySelector<HTMLElement>("[data-dynamic-feed-status]");
-    const list = root.querySelector<HTMLElement>("[data-dynamic-feed-list]");
-    if (!status || !list) return;
-
-    if (!apiBase) {
-      status.textContent = "动态暂未连接动态服务。";
-      return;
-    }
-
-    try {
-      let response = await fetch(`${apiBase}/api/dynamics?limit=${encodeURIComponent(String(limit))}`);
-      if (response.status === 404) {
-        response = await fetch(`${apiBase}/api/life?limit=${encodeURIComponent(String(limit))}`);
-      }
-      if (!response.ok) throw new Error("Request failed");
-      const payload = await response.json();
-      const records: DynamicRecord[] = Array.isArray(payload?.records) ? payload.records : [];
-      if (records.length === 0) {
-        list.hidden = true;
-        status.hidden = false;
-        status.textContent = "暂时还没有公开动态。";
-        return;
-      }
-
-      list.innerHTML = records
-        .map((record) => {
-          const title = escapeHtml(String(record.title || "动态"));
-          const content = String(record.content || "");
-          const escapedContent = escapeHtml(content);
-          const createdAt = formatDate(String(record.createdAt || ""));
-          const allImages = Array.isArray(record.images) ? record.images : [];
-          const images = allImages.slice(0, maxImages);
-          const isLong = content.length > shortTextLimit || allImages.length > maxImages;
-          const imageHtml = images.length
-            ? `<div class="dynamic-item__images dynamic-item__images--${Math.min(images.length, 4)}">
-              ${images
-                .map((image) => {
-                  const src = escapeHtml(resolveImageSrc(apiBase, String(image.src || "")));
-                  const alt = escapeHtml(String(image.alt || "动态图片"));
-                  return `<a href="${src}" target="_blank" rel="noreferrer"><img src="${src}" alt="${alt}" loading="lazy" decoding="async" /></a>`;
-                })
-                .join("")}
-            </div>`
-            : "";
-
-          return `<article class="dynamic-item${isLong ? " is-collapsed" : ""}" data-dynamic-item>
-            <div class="dynamic-item__meta">
-              ${createdAt ? `<time datetime="${escapeHtml(String(record.createdAt))}">${createdAt}</time>` : ""}
-            </div>
-            <h3>${title}</h3>
-            <p class="dynamic-item__content" data-dynamic-content-preview>${escapedContent}</p>
-            ${imageHtml}
-            ${isLong ? `<button class="dynamic-item__toggle" type="button" data-dynamic-toggle>查看更多</button>` : ""}
-          </article>`;
-        })
-        .join("");
-      status.hidden = true;
-      list.hidden = false;
-    } catch {
-      list.hidden = true;
-      status.hidden = false;
-      status.textContent = "动态暂时不可用。";
-    }
-  };
-
-  const setupDynamicComposer = (root: HTMLElement) => {
-    const apiBase = root.dataset.apiBase || "";
-    const openButton = root.querySelector<HTMLButtonElement>("[data-dynamic-open]");
-    const passwordModal = root.querySelector<HTMLElement>("[data-dynamic-password-modal]");
-    const passwordForm = root.querySelector<HTMLFormElement>("[data-dynamic-password-form]");
-    const passwordInput = root.querySelector<HTMLInputElement>("[data-dynamic-password]");
-    const passwordStatus = root.querySelector<HTMLElement>("[data-dynamic-password-status]");
-    const passwordSubmitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-password-confirm]");
-    const editorModal = root.querySelector<HTMLElement>("[data-dynamic-editor-modal]");
-    const form = root.querySelector<HTMLFormElement>("[data-dynamic-form]");
-    const formStatus = root.querySelector<HTMLElement>("[data-dynamic-form-status]");
-    const submitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-submit]");
-    const contentInput = root.querySelector<HTMLTextAreaElement>("[data-dynamic-content]");
-    const fileInput = root.querySelector<HTMLInputElement>("[data-dynamic-images]");
-    const dropzone = root.querySelector<HTMLElement>("[data-dynamic-dropzone]");
-    const preview = root.querySelector<HTMLElement>("[data-dynamic-image-preview]");
+    const status = root.querySelector<HTMLElement>("[data-dynamic-feed-status]")!;
+    const list = root.querySelector<HTMLElement>("[data-dynamic-feed-list]")!;
+    const filterForm = root.querySelector<HTMLFormElement>("[data-dynamic-filter]")!;
+    const filterTitle = root.querySelector<HTMLInputElement>("[data-dynamic-filter-title]");
+    const filterContent = root.querySelector<HTMLInputElement>("[data-dynamic-filter-content]");
+    const filterFrom = root.querySelector<HTMLInputElement>("[data-dynamic-filter-from]");
+    const filterTo = root.querySelector<HTMLInputElement>("[data-dynamic-filter-to]");
+    const openButton = root.querySelector<HTMLButtonElement>("[data-dynamic-open]")!;
+    const passwordModal = root.querySelector<HTMLElement>("[data-dynamic-password-modal]")!;
+    const passwordForm = root.querySelector<HTMLFormElement>("[data-dynamic-password-form]")!;
+    const passwordInput = root.querySelector<HTMLInputElement>("[data-dynamic-password]")!;
+    const passwordStatus = root.querySelector<HTMLElement>("[data-dynamic-password-status]")!;
+    const passwordSubmitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-password-confirm]")!;
+    const managerModal = root.querySelector<HTMLElement>("[data-dynamic-manager-modal]")!;
+    const managerList = root.querySelector<HTMLElement>("[data-dynamic-manager-list]")!;
+    const managerHeading = root.querySelector<HTMLElement>("[data-dynamic-editor-heading]")!;
+    const newButton = root.querySelector<HTMLButtonElement>("[data-dynamic-new]")!;
+    const form = root.querySelector<HTMLFormElement>("[data-dynamic-form]")!;
+    const titleInput = root.querySelector<HTMLInputElement>("[data-dynamic-title]")!;
+    const contentInput = root.querySelector<HTMLTextAreaElement>("[data-dynamic-content]")!;
+    const formStatus = root.querySelector<HTMLElement>("[data-dynamic-form-status]")!;
+    const submitButton = root.querySelector<HTMLButtonElement>("[data-dynamic-submit]")!;
+    const fileInput = root.querySelector<HTMLInputElement>("[data-dynamic-images]")!;
+    const dropzone = root.querySelector<HTMLElement>("[data-dynamic-dropzone]")!;
+    const existingPreview = root.querySelector<HTMLElement>("[data-dynamic-existing-preview]")!;
+    const preview = root.querySelector<HTMLElement>("[data-dynamic-image-preview]")!;
 
     if (
+      !status ||
+      !list ||
+      !filterForm ||
       !openButton ||
       !passwordModal ||
       !passwordForm ||
       !passwordInput ||
       !passwordStatus ||
       !passwordSubmitButton ||
-      !editorModal ||
+      !managerModal ||
+      !managerList ||
+      !managerHeading ||
+      !newButton ||
       !form ||
+      !titleInput ||
+      !contentInput ||
       !formStatus ||
       !submitButton ||
-      !contentInput ||
       !fileInput ||
       !dropzone ||
+      !existingPreview ||
       !preview
     ) {
       return;
     }
 
+    let records: DynamicRecord[] = [];
     let dynamicSessionToken = "";
     let pendingImages: PendingImage[] = [];
+    let retainedImages: DynamicImage[] = [];
+    let editingRecord: DynamicRecord | null = null;
+    let filterTimer = 0;
+    let requestToken = 0;
 
     const setModalOpen = (modal: HTMLElement, open: boolean) => {
       modal.hidden = !open;
-      const hasOpenModal = !passwordModal.hidden || !editorModal.hidden || open;
+      const hasOpenModal = !passwordModal.hidden || !managerModal.hidden || open;
       document.documentElement.classList.toggle("has-modal-open", hasOpenModal);
     };
 
@@ -313,22 +301,133 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       setModalOpen(passwordModal, false);
     };
 
-    const closeEditorModal = () => {
+    const closeManagerModal = () => {
+      resetEditor();
+      setModalOpen(managerModal, false);
+    };
+
+    const getFilterParams = () => {
+      const params = new URLSearchParams({ limit: String(Math.max(limit, 24)) });
+      const title = filterTitle?.value.trim() || "";
+      const content = filterContent?.value.trim() || "";
+      const from = filterFrom?.value || "";
+      const to = filterTo?.value || "";
+      if (title) params.set("title", title);
+      if (content) params.set("content", content);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      return params;
+    };
+
+    const renderImageGrid = (images: DynamicImage[]) => {
+      if (images.length === 0) return "";
+      return `<div class="dynamic-item__images dynamic-item__images--${Math.min(images.length, 4)}">
+        ${images
+          .map((image) => {
+            const src = escapeHtml(resolveImageSrc(apiBase, String(image.src || "")));
+            const alt = escapeHtml(String(image.alt || "动态图片"));
+            return `<a href="${src}" target="_blank" rel="noreferrer"><img src="${src}" alt="${alt}" loading="lazy" decoding="async" /></a>`;
+          })
+          .join("")}
+      </div>`;
+    };
+
+    const renderRecords = () => {
+      if (records.length === 0) {
+        list.hidden = true;
+        status.hidden = false;
+        status.textContent = "暂时还没有符合条件的公开动态。";
+        renderManagerList();
+        return;
+      }
+
+      list.innerHTML = records
+        .map((record) => {
+          const title = String(record.title || "").trim();
+          const content = String(record.content || "");
+          const allImages = Array.isArray(record.images) ? record.images : [];
+          const isLong = content.length > shortTextLimit || allImages.length > maxImages;
+          const createdAt = formatDate(String(record.createdAt || ""));
+          return `<article class="dynamic-item${isLong ? " is-collapsed" : ""}" data-dynamic-item>
+            ${title ? `<h3>${escapeHtml(title)}</h3>` : ""}
+            ${content ? `<p class="dynamic-item__content" data-dynamic-content-preview>${escapeHtml(content)}</p>` : ""}
+            ${renderImageGrid(allImages)}
+            <footer class="dynamic-item__footer">
+              ${isLong ? `<button class="dynamic-item__toggle" type="button" data-dynamic-toggle>查看更多</button>` : "<span></span>"}
+              ${createdAt ? `<time datetime="${escapeHtml(String(record.createdAt))}">${createdAt}</time>` : ""}
+            </footer>
+          </article>`;
+        })
+        .join("");
+      status.hidden = true;
+      list.hidden = false;
+      renderManagerList();
+    };
+
+    const loadRecords = async (showStatus = true) => {
+      if (!apiBase) {
+        status.textContent = "动态暂未连接动态服务。";
+        openButton.disabled = true;
+        return;
+      }
+
+      const currentToken = ++requestToken;
+      if (showStatus) {
+        status.hidden = false;
+        status.textContent = "正在读取公开动态。";
+      }
+
+      try {
+        let response = await fetch(`${apiBase}/api/dynamics?${getFilterParams().toString()}`);
+        if (response.status === 404) {
+          response = await fetch(`${apiBase}/api/life?${getFilterParams().toString()}`);
+        }
+        if (!response.ok) throw new Error("Request failed");
+        const payload = await response.json();
+        if (currentToken !== requestToken) return;
+        records = Array.isArray(payload?.records) ? payload.records : [];
+        renderRecords();
+      } catch {
+        if (currentToken !== requestToken) return;
+        list.hidden = true;
+        status.hidden = false;
+        status.textContent = "动态暂时不可用。";
+      }
+    };
+
+    function resetEditor() {
       pendingImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       pendingImages = [];
+      retainedImages = [];
+      editingRecord = null;
+      titleInput.value = "";
       contentInput.value = "";
+      managerHeading.textContent = "发布动态";
+      submitButton.textContent = "发布";
       formStatus.textContent = "";
-      preview.hidden = true;
-      preview.innerHTML = "";
-      setModalOpen(editorModal, false);
-    };
+      renderExistingPreview();
+      renderPendingPreview();
+    }
 
-    const openEditorModal = () => {
-      setModalOpen(editorModal, true);
-      window.setTimeout(() => contentInput.focus(), 40);
-    };
+    function renderExistingPreview() {
+      if (retainedImages.length === 0) {
+        existingPreview.hidden = true;
+        existingPreview.innerHTML = "";
+        return;
+      }
+      existingPreview.innerHTML = retainedImages
+        .map((image, index) => {
+          const src = escapeHtml(resolveImageSrc(apiBase, String(image.src || "")));
+          return `<figure>
+            <img src="${src}" alt="${escapeHtml(String(image.alt || "已有图片"))}" />
+            <button type="button" data-remove-existing="${index}" aria-label="移除已有图片">×</button>
+          </figure>`;
+        })
+        .join("");
+      existingPreview.hidden = false;
+    }
 
-    const renderImagePreview = () => {
+    function renderPendingPreview() {
       if (pendingImages.length === 0) {
         preview.hidden = true;
         preview.innerHTML = "";
@@ -343,27 +442,81 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         )
         .join("");
       preview.hidden = false;
-    };
+    }
 
     const addFiles = async (files: FileList | File[]) => {
-      const selectedFiles = Array.from(files).slice(0, maxImages - pendingImages.length);
-      if (selectedFiles.length === 0) return;
+      const remainingSlots = maxImages - retainedImages.length - pendingImages.length;
+      const selectedFiles = Array.from(files).slice(0, Math.max(0, remainingSlots));
+      if (selectedFiles.length === 0) {
+        formStatus.textContent = "最多添加 4 张图片。";
+        return;
+      }
       try {
         const images = await Promise.all(selectedFiles.map(readImage));
-        pendingImages = [...pendingImages, ...images].slice(0, maxImages);
-        formStatus.textContent = pendingImages.length >= maxImages ? "最多添加 4 张图片。" : "";
-        renderImagePreview();
+        pendingImages = [...pendingImages, ...images].slice(0, Math.max(0, maxImages - retainedImages.length));
+        formStatus.textContent = retainedImages.length + pendingImages.length >= maxImages ? "最多添加 4 张图片。" : "";
+        renderPendingPreview();
       } catch (error) {
         formStatus.textContent = error instanceof Error ? error.message : "图片添加失败。";
       }
     };
 
+    function startEdit(record: DynamicRecord) {
+      pendingImages.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      pendingImages = [];
+      editingRecord = record;
+      retainedImages = Array.isArray(record.images) ? [...record.images].slice(0, maxImages) : [];
+      titleInput.value = String(record.title || "");
+      contentInput.value = String(record.content || "");
+      managerHeading.textContent = "编辑动态";
+      submitButton.textContent = "保存";
+      formStatus.textContent = "";
+      renderExistingPreview();
+      renderPendingPreview();
+      contentInput.focus();
+    }
+
+    function renderManagerList() {
+      if (!managerList) return;
+      if (!dynamicSessionToken) {
+        managerList.innerHTML = "";
+        return;
+      }
+      if (records.length === 0) {
+        managerList.innerHTML = `<p class="dynamic-manager__empty">没有可管理的动态。</p>`;
+        return;
+      }
+      managerList.innerHTML = records
+        .map((record) => {
+          const title = String(record.title || "").trim();
+          const content = String(record.content || "").trim();
+          const summary = title || content.slice(0, 52) || "无文字动态";
+          const date = formatDate(String(record.createdAt || ""));
+          return `<article class="dynamic-manager-item">
+            <div>
+              <strong>${escapeHtml(summary)}</strong>
+              ${date ? `<time datetime="${escapeHtml(String(record.createdAt))}">${date}</time>` : ""}
+            </div>
+            <div class="dynamic-manager-item__actions">
+              <button type="button" data-dynamic-edit="${escapeHtml(String(record.id || ""))}">编辑</button>
+              <button type="button" data-dynamic-delete="${escapeHtml(String(record.id || ""))}">删除</button>
+            </div>
+          </article>`;
+        })
+        .join("");
+    }
+
     if (!apiBase) {
       openButton.disabled = true;
-      return;
     }
 
     openButton.addEventListener("click", () => {
+      if (!apiBase) return;
+      if (dynamicSessionToken) {
+        setModalOpen(managerModal, true);
+        renderManagerList();
+        return;
+      }
       setModalOpen(passwordModal, true);
       passwordStatus.textContent = "请输入发布密码。";
       window.setTimeout(() => passwordInput.focus(), 40);
@@ -375,8 +528,8 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         closeTarget.addEventListener("click", closePasswordModal);
       });
 
-    editorModal.querySelectorAll<HTMLElement>("[data-dynamic-editor-close]").forEach((closeTarget) => {
-      closeTarget.addEventListener("click", closeEditorModal);
+    managerModal.querySelectorAll<HTMLElement>("[data-dynamic-manager-close]").forEach((closeTarget) => {
+      closeTarget.addEventListener("click", closeManagerModal);
     });
 
     passwordForm.addEventListener("submit", async (event) => {
@@ -402,12 +555,38 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         }
         dynamicSessionToken = String(payload.token);
         closePasswordModal();
-        openEditorModal();
+        resetEditor();
+        setModalOpen(managerModal, true);
+        renderManagerList();
       } catch (error) {
         passwordStatus.textContent = error instanceof Error ? error.message : "密码确认失败。";
       } finally {
         passwordSubmitButton.disabled = false;
       }
+    });
+
+    filterForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      window.clearTimeout(filterTimer);
+      void loadRecords();
+    });
+
+    filterForm.addEventListener("reset", () => {
+      window.setTimeout(() => {
+        window.clearTimeout(filterTimer);
+        void loadRecords();
+      }, 0);
+    });
+
+    [filterTitle, filterContent, filterFrom, filterTo].forEach((input) => {
+      input?.addEventListener("input", () => {
+        window.clearTimeout(filterTimer);
+        filterTimer = window.setTimeout(() => void loadRecords(false), 360);
+      });
+      input?.addEventListener("change", () => {
+        window.clearTimeout(filterTimer);
+        filterTimer = window.setTimeout(() => void loadRecords(false), 160);
+      });
     });
 
     fileInput.addEventListener("change", () => {
@@ -440,13 +619,24 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       const index = Number.parseInt(button.dataset.removeImage || "-1", 10);
       const [removed] = pendingImages.splice(index, 1);
       if (removed) URL.revokeObjectURL(removed.previewUrl);
-      renderImagePreview();
+      renderPendingPreview();
     });
+
+    existingPreview.addEventListener("click", (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-remove-existing]");
+      if (!button) return;
+      const index = Number.parseInt(button.dataset.removeExisting || "-1", 10);
+      retainedImages.splice(index, 1);
+      renderExistingPreview();
+    });
+
+    newButton.addEventListener("click", resetEditor);
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const title = titleInput.value.trim();
       const content = contentInput.value.trim();
-      if (!content && pendingImages.length === 0) {
+      if (!content && retainedImages.length + pendingImages.length === 0) {
         formStatus.textContent = "先写一点内容或添加图片。";
         contentInput.focus();
         return;
@@ -458,16 +648,21 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       }
 
       submitButton.disabled = true;
-      formStatus.textContent = "正在发布。";
+      formStatus.textContent = editingRecord ? "正在保存。" : "正在发布。";
       try {
-        const response = await fetch(`${apiBase}/api/dynamics`, {
-          method: "POST",
+        const url = editingRecord?.id
+          ? `${apiBase}/api/dynamics/${encodeURIComponent(editingRecord.id)}`
+          : `${apiBase}/api/dynamics`;
+        const response = await fetch(url, {
+          method: editingRecord ? "PUT" : "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${dynamicSessionToken}`
           },
           body: JSON.stringify({
+            title,
             content,
+            existingImages: retainedImages,
             images: pendingImages.map((image) => ({
               dataUrl: image.dataUrl,
               name: image.file.name,
@@ -479,21 +674,57 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload?.ok) {
-          throw new Error(payload?.error || "动态发布失败。");
+          throw new Error(payload?.error || "动态保存失败。");
         }
-        closeEditorModal();
-        await renderDynamicFeed(root);
+        resetEditor();
+        formStatus.textContent = "已保存。";
+        await loadRecords(false);
       } catch (error) {
         if (error instanceof Error && /Unauthorized|expired/i.test(error.message)) {
           dynamicSessionToken = "";
         }
-        formStatus.textContent = error instanceof Error ? error.message : "动态发布失败。";
+        formStatus.textContent = error instanceof Error ? error.message : "动态保存失败。";
       } finally {
         submitButton.disabled = false;
       }
     });
 
-    root.addEventListener("click", (event) => {
+    managerList.addEventListener("click", async (event) => {
+      const editButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-dynamic-edit]");
+      const deleteButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-dynamic-delete]");
+      if (editButton) {
+        const record = records.find((item) => item.id === editButton.dataset.dynamicEdit);
+        if (record) startEdit(record);
+        return;
+      }
+      if (!deleteButton) return;
+      const id = deleteButton.dataset.dynamicDelete || "";
+      if (!id || !window.confirm("确定删除这条动态吗？")) return;
+      deleteButton.disabled = true;
+      formStatus.textContent = "正在删除。";
+      try {
+        const response = await fetch(`${apiBase}/api/dynamics/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${dynamicSessionToken}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error || "删除失败。");
+        }
+        if (editingRecord?.id === id) resetEditor();
+        await loadRecords(false);
+        formStatus.textContent = "已删除。";
+      } catch (error) {
+        if (error instanceof Error && /Unauthorized|expired/i.test(error.message)) {
+          dynamicSessionToken = "";
+        }
+        formStatus.textContent = error instanceof Error ? error.message : "删除失败。";
+      } finally {
+        deleteButton.disabled = false;
+      }
+    });
+
+    list.addEventListener("click", (event) => {
       const toggle = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-dynamic-toggle]");
       if (!toggle) return;
       const item = toggle.closest<HTMLElement>("[data-dynamic-item]");
@@ -504,15 +735,14 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     window.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      if (!editorModal.hidden) closeEditorModal();
+      if (!managerModal.hidden) closeManagerModal();
       if (!passwordModal.hidden) closePasswordModal();
     });
+
+    void loadRecords();
   };
 
-  document.querySelectorAll<HTMLElement>("[data-dynamic-feed]").forEach((root) => {
-    setupDynamicComposer(root);
-    void renderDynamicFeed(root);
-  });
+  document.querySelectorAll<HTMLElement>("[data-dynamic-feed]").forEach(setupDynamicFeed);
 </script>
 
 <style>
@@ -522,7 +752,8 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     padding: 22px;
   }
 
-  .dynamic-feed__header {
+  .dynamic-feed__header,
+  .dynamic-manager__top {
     display: flex;
     gap: 14px;
     align-items: start;
@@ -570,12 +801,86 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     opacity: 0.45;
   }
 
+  .dynamic-filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 145px 145px auto;
+    gap: 10px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 18%);
+  }
+
+  .dynamic-filter label,
+  .dynamic-password-modal__form label,
+  .dynamic-composer label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.86rem;
+    font-weight: 800;
+  }
+
+  .dynamic-filter input,
+  .dynamic-password-modal__form input,
+  .dynamic-composer input,
+  .dynamic-composer textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface), transparent 4%);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .dynamic-filter input,
+  .dynamic-password-modal__form input,
+  .dynamic-composer input {
+    height: 40px;
+    padding: 0 10px;
+  }
+
+  .dynamic-filter__actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .dynamic-filter__actions button,
+  .dynamic-password-modal__actions button,
+  .dynamic-composer button,
+  .dynamic-manager__top button,
+  .dynamic-manager-item button {
+    min-width: 74px;
+    height: 40px;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 900;
+  }
+
+  .dynamic-filter__actions button[type="submit"],
+  .dynamic-password-modal__actions button[type="submit"],
+  .dynamic-composer button,
+  .dynamic-manager__top button,
+  .dynamic-manager-item button:first-child {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .dynamic-filter__actions button[type="reset"],
+  .dynamic-password-modal__actions button[type="button"] {
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
   .dynamic-feed__status {
     color: var(--muted);
   }
 
   .dynamic-password-modal,
-  .dynamic-editor-modal {
+  .dynamic-manager-modal {
     position: fixed;
     inset: 0;
     z-index: 70;
@@ -585,12 +890,12 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-password-modal[hidden],
-  .dynamic-editor-modal[hidden] {
+  .dynamic-manager-modal[hidden] {
     display: none;
   }
 
   .dynamic-password-modal__backdrop,
-  .dynamic-editor-modal__backdrop {
+  .dynamic-manager-modal__backdrop {
     position: absolute;
     inset: 0;
     background: rgba(31, 20, 30, 0.46);
@@ -598,7 +903,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-password-modal__panel,
-  .dynamic-editor-modal__panel {
+  .dynamic-manager-modal__panel {
     position: relative;
     z-index: 1;
     width: min(100%, 500px);
@@ -609,17 +914,21 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     box-shadow: 0 24px 70px rgba(76, 42, 61, 0.28);
   }
 
-  .dynamic-editor-modal__panel {
-    width: min(100%, 640px);
+  .dynamic-manager-modal__panel {
+    display: grid;
+    width: min(100%, 760px);
+    max-height: min(88vh, 820px);
+    overflow: auto;
+    gap: 16px;
   }
 
   :root[data-theme="dark"] .dynamic-password-modal__panel,
-  :root[data-theme="dark"] .dynamic-editor-modal__panel {
+  :root[data-theme="dark"] .dynamic-manager-modal__panel {
     background: color-mix(in srgb, var(--surface), black 8%);
   }
 
   .dynamic-password-modal__close,
-  .dynamic-editor-modal__close {
+  .dynamic-manager-modal__close {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -639,51 +948,34 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-password-modal__form h3,
-  .dynamic-composer h3 {
+  .dynamic-manager__top h3 {
     margin: 0;
     padding-right: 36px;
     font-size: 1.2rem;
     line-height: 1.35;
   }
 
-  .dynamic-password-modal__hint {
+  .dynamic-password-modal__hint,
+  .dynamic-password-modal__status,
+  .dynamic-composer__status {
     margin: 0;
     color: var(--muted);
     font-size: 0.92rem;
   }
 
-  .dynamic-password-modal__form label,
-  .dynamic-composer label {
-    display: grid;
-    gap: 6px;
-    color: var(--muted);
-    font-size: 0.9rem;
-    font-weight: 800;
-  }
-
-  .dynamic-password-modal__form input,
-  .dynamic-composer textarea {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--surface), transparent 4%);
-    color: var(--text);
-    font: inherit;
-  }
-
-  .dynamic-password-modal__form input {
-    height: 42px;
-    padding: 0 11px;
+  .dynamic-password-modal__status,
+  .dynamic-composer__status {
+    min-height: 1.4em;
   }
 
   .dynamic-composer textarea {
-    min-height: 142px;
+    min-height: 140px;
     padding: 12px;
     resize: vertical;
   }
 
   .dynamic-dropzone {
-    min-height: 78px;
+    min-height: 74px;
     place-items: center;
     border: 1px dashed color-mix(in srgb, var(--accent), transparent 40%);
     border-radius: 8px;
@@ -700,32 +992,51 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     display: none;
   }
 
+  .dynamic-existing-preview,
   .dynamic-image-preview {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
   }
 
+  .dynamic-existing-preview figure,
   .dynamic-image-preview figure {
     position: relative;
+    display: grid;
     aspect-ratio: 1;
     margin: 0;
     overflow: hidden;
+    place-items: center;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--surface-muted);
+    background:
+      linear-gradient(45deg, rgba(255, 255, 255, 0.35) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.35) 75%),
+      linear-gradient(45deg, rgba(255, 255, 255, 0.35) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.35) 75%),
+      color-mix(in srgb, var(--surface-muted), transparent 10%);
+    background-position:
+      0 0,
+      8px 8px,
+      0 0;
+    background-size:
+      16px 16px,
+      16px 16px,
+      auto;
   }
 
+  .dynamic-existing-preview img,
   .dynamic-image-preview img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
 
+  .dynamic-existing-preview button,
   .dynamic-image-preview button {
     position: absolute;
     top: 6px;
     right: 6px;
     width: 24px;
+    min-width: 24px;
     height: 24px;
     border: 0;
     border-radius: 50%;
@@ -741,62 +1052,44 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     justify-content: flex-end;
   }
 
-  .dynamic-password-modal__actions button,
-  .dynamic-composer button {
-    min-width: 96px;
-    height: 40px;
-    border: 0;
-    border-radius: 8px;
-    font: inherit;
-    font-weight: 900;
-  }
-
-  .dynamic-password-modal__actions button[type="button"] {
-    border: 1px solid var(--border);
-    background: var(--surface-muted);
-    color: var(--text);
-  }
-
-  .dynamic-password-modal__actions button[type="submit"],
-  .dynamic-composer button {
-    background: var(--accent);
-    color: #fff;
-  }
-
   .dynamic-password-modal__actions button:disabled,
-  .dynamic-composer button:disabled {
+  .dynamic-composer button:disabled,
+  .dynamic-manager-item button:disabled {
     cursor: not-allowed;
     opacity: 0.58;
   }
 
-  .dynamic-password-modal__status,
-  .dynamic-composer__status {
-    min-height: 1.4em;
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.92rem;
-  }
-
   .dynamic-feed__list {
     display: grid;
-    gap: 14px;
+    gap: 22px;
   }
 
   .dynamic-item {
+    position: relative;
     display: grid;
     gap: 10px;
-    padding: 16px;
-    border: 1px solid var(--border);
+    padding: 18px 16px 14px;
+    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 22%);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-muted), transparent 12%);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 5%), color-mix(in srgb, var(--surface-muted), transparent 10%));
+    box-shadow:
+      0 12px 30px rgba(91, 58, 76, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.42);
   }
 
-  .dynamic-item__meta {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    color: var(--muted);
-    font-size: 0.82rem;
+  .dynamic-item + .dynamic-item::before {
+    position: absolute;
+    top: -13px;
+    right: 8px;
+    left: 8px;
+    height: 4px;
+    border-radius: 999px;
+    background:
+      linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent), transparent 34%), transparent),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(95, 121, 180, 0.22));
+    box-shadow: 0 2px 8px rgba(70, 87, 126, 0.18);
+    content: "";
   }
 
   .dynamic-item h3 {
@@ -808,6 +1101,8 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   .dynamic-item__content {
     margin: 0;
     color: var(--text);
+    line-height: 1.75;
+    overflow-wrap: anywhere;
     white-space: pre-wrap;
   }
 
@@ -830,22 +1125,48 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .dynamic-item__images a {
-    display: block;
+    display: grid;
     aspect-ratio: 1;
     overflow: hidden;
+    place-items: center;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--surface-muted);
-  }
-
-  .dynamic-item__images--1 a {
-    max-width: 420px;
-    aspect-ratio: 4 / 3;
+    background:
+      linear-gradient(45deg, rgba(255, 255, 255, 0.32) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.32) 75%),
+      linear-gradient(45deg, rgba(255, 255, 255, 0.32) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.32) 75%),
+      color-mix(in srgb, var(--surface-muted), transparent 12%);
+    background-position:
+      0 0,
+      8px 8px,
+      0 0;
+    background-size:
+      16px 16px,
+      16px 16px,
+      auto;
   }
 
   .dynamic-item__images img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
+  }
+
+  .dynamic-item.is-collapsed .dynamic-item__images a:nth-child(n + 5) {
+    display: none;
+  }
+
+  .dynamic-item__footer {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .dynamic-item__footer time {
+    margin-left: auto;
+    color: #3b76d1;
+    font-size: 0.76rem;
+    font-weight: 800;
   }
 
   .dynamic-item__toggle {
@@ -859,24 +1180,85 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     font-weight: 900;
   }
 
-  @media (max-width: 720px) {
-    .dynamic-password-modal,
-    .dynamic-editor-modal {
-      padding: 12px;
+  .dynamic-manager__list {
+    display: grid;
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  .dynamic-manager__empty {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .dynamic-manager-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .dynamic-manager-item strong,
+  .dynamic-manager-item time {
+    display: block;
+  }
+
+  .dynamic-manager-item strong {
+    font-size: 0.94rem;
+  }
+
+  .dynamic-manager-item time {
+    color: var(--muted);
+    font-size: 0.76rem;
+  }
+
+  .dynamic-manager-item__actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  .dynamic-manager-item__actions button:last-child {
+    border: 1px solid color-mix(in srgb, #cf3f5f, transparent 30%);
+    background: color-mix(in srgb, #cf3f5f, transparent 88%);
+    color: #b72f4d;
+  }
+
+  @media (max-width: 760px) {
+    .dynamic-filter {
+      grid-template-columns: 1fr;
     }
 
-    .dynamic-password-modal__panel,
-    .dynamic-editor-modal__panel {
-      padding: 18px;
-    }
-
+    .dynamic-filter__actions,
     .dynamic-password-modal__actions button,
     .dynamic-composer button {
       width: 100%;
     }
 
+    .dynamic-filter__actions button {
+      flex: 1 1 0;
+    }
+
+    .dynamic-password-modal,
+    .dynamic-manager-modal {
+      padding: 12px;
+    }
+
+    .dynamic-password-modal__panel,
+    .dynamic-manager-modal__panel {
+      padding: 18px;
+    }
+
+    .dynamic-existing-preview,
     .dynamic-image-preview {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dynamic-manager-item {
+      align-items: stretch;
+      flex-direction: column;
     }
   }
 </style>

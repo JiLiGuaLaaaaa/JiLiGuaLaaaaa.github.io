@@ -64,15 +64,29 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
         <h2>日记本</h2>
         <button type="button" data-diary-new>新建</button>
       </div>
-      <label class="diary-search">
-        <span>搜索</span>
-        <input type="search" placeholder="查找标题或内容" data-diary-search />
-      </label>
+      <form class="diary-filter" data-diary-filter autocomplete="off">
+        <label>
+          <span>搜索</span>
+          <input type="search" placeholder="查找标题或内容" data-diary-search />
+        </label>
+        <label>
+          <span>开始</span>
+          <input type="date" data-diary-from />
+        </label>
+        <label>
+          <span>结束</span>
+          <input type="date" data-diary-to />
+        </label>
+        <div class="diary-filter__actions">
+          <button type="submit">检索</button>
+          <button type="reset">重置</button>
+        </div>
+      </form>
       <div class="diary-book__list" data-diary-list></div>
     </div>
     <form class="diary-editor" data-diary-editor hidden autocomplete="off">
       <div class="diary-editor__top">
-        <h2>写日记</h2>
+        <h2 data-diary-editor-heading>写日记</h2>
         <button type="button" data-diary-back>返回</button>
       </div>
       <label>
@@ -100,10 +114,14 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   const diaryBook = diaryModal?.querySelector<HTMLElement>("[data-diary-book]");
   const diaryEditor = diaryModal?.querySelector<HTMLFormElement>("[data-diary-editor]");
   const diaryPasswordInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-password]");
+  const diaryFilterForm = diaryModal?.querySelector<HTMLFormElement>("[data-diary-filter]");
   const diarySearchInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-search]");
+  const diaryFromInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-from]");
+  const diaryToInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-to]");
   const diaryList = diaryModal?.querySelector<HTMLElement>("[data-diary-list]");
   const diaryNewButton = diaryModal?.querySelector<HTMLButtonElement>("[data-diary-new]");
   const diaryBackButton = diaryModal?.querySelector<HTMLButtonElement>("[data-diary-back]");
+  const diaryEditorHeading = diaryModal?.querySelector<HTMLElement>("[data-diary-editor-heading]");
   const diaryTitleInput = diaryModal?.querySelector<HTMLInputElement>("[data-diary-title]");
   const diaryContentInput = diaryModal?.querySelector<HTMLTextAreaElement>("[data-diary-content]");
   const diaryStatus = diaryModal?.querySelector<HTMLElement>("[data-diary-status]");
@@ -196,6 +214,9 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     updatedAt?: string;
   };
   let diaryEntries: DiaryEntry[] = [];
+  let editingDiaryEntry: DiaryEntry | null = null;
+  let diaryFilterTimer = 0;
+  let diaryRequestToken = 0;
   const diaryClickWindow = 8000;
   const diaryClickThreshold = 20;
 
@@ -434,6 +455,17 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     }
   };
 
+  const getDiaryFilterParams = () => {
+    const params = new URLSearchParams();
+    const query = diarySearchInput?.value.trim() || "";
+    const from = diaryFromInput?.value || "";
+    const to = diaryToInput?.value || "";
+    if (query) params.set("q", query);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return params;
+  };
+
   const renderDiaryEntries = (entries = diaryEntries) => {
     if (!diaryList) return;
     if (entries.length === 0) {
@@ -442,28 +474,43 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     }
     diaryList.innerHTML = entries
       .map((entry) => {
-        const title = escapeDiaryHtml(String(entry.title || "未命名日记"));
-        const content = escapeDiaryHtml(String(entry.content || ""));
+        const title = String(entry.title || "").trim();
+        const content = String(entry.content || "");
         const date = formatDiaryDate(String(entry.createdAt || ""));
-        return `<article class="diary-entry">
-          <div class="diary-entry__meta">${date ? `<time datetime="${escapeDiaryHtml(String(entry.createdAt))}">${date}</time>` : ""}</div>
-          <h3>${title}</h3>
-          <p>${content}</p>
+        const isLong = content.length > 220;
+        return `<article class="diary-entry${isLong ? " is-collapsed" : ""}" data-diary-entry="${escapeDiaryHtml(String(entry.id || ""))}">
+          <div class="diary-entry__meta">
+            ${date ? `<time datetime="${escapeDiaryHtml(String(entry.createdAt))}">${date}</time>` : ""}
+          </div>
+          ${title ? `<h3>${escapeDiaryHtml(title)}</h3>` : ""}
+          <p class="diary-entry__content">${escapeDiaryHtml(content)}</p>
+          <div class="diary-entry__bar">
+            <div>
+              ${isLong ? `<button type="button" data-diary-toggle>查看更多</button>` : ""}
+            </div>
+            <div class="diary-entry__actions">
+              <button type="button" data-diary-edit="${escapeDiaryHtml(String(entry.id || ""))}">编辑</button>
+              <button type="button" data-diary-delete="${escapeDiaryHtml(String(entry.id || ""))}">删除</button>
+            </div>
+          </div>
         </article>`;
       })
       .join("");
   };
 
-  const loadDiaryEntries = async (query = "") => {
+  const loadDiaryEntries = async (showStatus = true) => {
     if (!diaryApiBase || !diarySessionToken) return;
-    const endpoint = `${diaryApiBase}/api/diary${query ? `?q=${encodeURIComponent(query)}` : ""}`;
-    setDiaryStatus("正在读取日记。");
+    const requestId = ++diaryRequestToken;
+    const params = getDiaryFilterParams();
+    const endpoint = `${diaryApiBase}/api/diary${params.toString() ? `?${params.toString()}` : ""}`;
+    if (showStatus) setDiaryStatus("正在读取日记。");
     const response = await fetch(endpoint, {
       headers: {
         "Authorization": `Bearer ${diarySessionToken}`
       }
     });
     const payload = await response.json().catch(() => ({}));
+    if (requestId !== diaryRequestToken) return;
     if (!response.ok || !payload?.ok || !Array.isArray(payload.entries)) {
       throw new Error(payload?.error || "读取日记失败。");
     }
@@ -472,25 +519,40 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     setDiaryStatus("");
   };
 
-  const showDiaryBook = async () => {
+  const showDiaryBook = async (reload = true) => {
     if (!diaryGate || !diaryBook || !diaryEditor) return;
+    editingDiaryEntry = null;
     diaryGate.hidden = true;
     diaryBook.hidden = false;
     diaryEditor.hidden = true;
     setDiaryStatus("");
     window.setTimeout(() => diarySearchInput?.focus(), 40);
+    if (!reload) return;
     try {
-      await loadDiaryEntries(diarySearchInput?.value.trim() || "");
+      await loadDiaryEntries();
     } catch (error) {
       setDiaryStatus(error instanceof Error ? error.message : "读取日记失败。");
     }
   };
 
-  const showDiaryEditor = () => {
+  const resetDiaryEditor = () => {
+    editingDiaryEntry = null;
+    if (diaryTitleInput) diaryTitleInput.value = "";
+    if (diaryContentInput) diaryContentInput.value = "";
+    if (diaryEditorHeading) diaryEditorHeading.textContent = "写日记";
+    if (diarySaveButton) diarySaveButton.textContent = "保存";
+  };
+
+  const showDiaryEditor = (entry?: DiaryEntry) => {
     if (!diaryGate || !diaryBook || !diaryEditor) return;
+    editingDiaryEntry = entry || null;
     diaryGate.hidden = true;
     diaryBook.hidden = true;
     diaryEditor.hidden = false;
+    if (diaryTitleInput) diaryTitleInput.value = String(entry?.title || "");
+    if (diaryContentInput) diaryContentInput.value = String(entry?.content || "");
+    if (diaryEditorHeading) diaryEditorHeading.textContent = entry ? "编辑日记" : "写日记";
+    if (diarySaveButton) diarySaveButton.textContent = entry ? "保存修改" : "保存";
     setDiaryStatus("");
     window.setTimeout(() => diaryContentInput?.focus(), 40);
   };
@@ -561,8 +623,11 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     if (diarySaveButton) diarySaveButton.disabled = true;
     setDiaryStatus("正在保存。");
     try {
-      const response = await fetch(`${diaryApiBase}/api/diary`, {
-        method: "POST",
+      const endpoint = editingDiaryEntry?.id
+        ? `${diaryApiBase}/api/diary/${encodeURIComponent(editingDiaryEntry.id)}`
+        : `${diaryApiBase}/api/diary`;
+      const response = await fetch(endpoint, {
+        method: editingDiaryEntry ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${diarySessionToken}`
@@ -573,8 +638,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
       if (!response.ok || !payload?.ok) {
         throw new Error(payload?.error || "保存失败。");
       }
-      if (diaryTitleInput) diaryTitleInput.value = "";
-      diaryContentInput.value = "";
+      resetDiaryEditor();
       setDiaryStatus("已保存。");
       say("日记保存好啦。");
       await showDiaryBook();
@@ -589,8 +653,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   });
 
   diaryNewButton?.addEventListener("click", () => {
-    if (diaryTitleInput) diaryTitleInput.value = "";
-    if (diaryContentInput) diaryContentInput.value = "";
+    resetDiaryEditor();
     showDiaryEditor();
   });
 
@@ -598,23 +661,86 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     void showDiaryBook();
   });
 
-  diarySearchInput?.addEventListener("input", () => {
-    const keyword = diarySearchInput.value.trim().toLowerCase();
-    if (!keyword) {
-      renderDiaryEntries(diaryEntries);
-      return;
-    }
-    renderDiaryEntries(
-      diaryEntries.filter((entry) => `${entry.title || ""}\n${entry.content || ""}`.toLowerCase().includes(keyword))
-    );
+  diaryFilterForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    window.clearTimeout(diaryFilterTimer);
+    void loadDiaryEntries().catch((error) => {
+      setDiaryStatus(error instanceof Error ? error.message : "检索失败。");
+    });
   });
 
-  diarySearchInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      void loadDiaryEntries(diarySearchInput.value.trim()).catch((error) => {
-        setDiaryStatus(error instanceof Error ? error.message : "搜索失败。");
+  diaryFilterForm?.addEventListener("reset", () => {
+    window.setTimeout(() => {
+      window.clearTimeout(diaryFilterTimer);
+      void loadDiaryEntries().catch((error) => {
+        setDiaryStatus(error instanceof Error ? error.message : "检索失败。");
       });
+    }, 0);
+  });
+
+  [diarySearchInput, diaryFromInput, diaryToInput].forEach((input) => {
+    input?.addEventListener("input", () => {
+      window.clearTimeout(diaryFilterTimer);
+      diaryFilterTimer = window.setTimeout(() => {
+        void loadDiaryEntries(false).catch((error) => {
+          setDiaryStatus(error instanceof Error ? error.message : "检索失败。");
+        });
+      }, 360);
+    });
+    input?.addEventListener("change", () => {
+      window.clearTimeout(diaryFilterTimer);
+      diaryFilterTimer = window.setTimeout(() => {
+        void loadDiaryEntries(false).catch((error) => {
+          setDiaryStatus(error instanceof Error ? error.message : "检索失败。");
+        });
+      }, 160);
+    });
+  });
+
+  diaryList?.addEventListener("click", async (event) => {
+    const toggleButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-diary-toggle]");
+    if (toggleButton) {
+      const item = toggleButton.closest<HTMLElement>("[data-diary-entry]");
+      if (!item) return;
+      const collapsed = item.classList.toggle("is-collapsed");
+      toggleButton.textContent = collapsed ? "查看更多" : "收起";
+      return;
+    }
+
+    const editButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-diary-edit]");
+    if (editButton) {
+      const entry = diaryEntries.find((item) => item.id === editButton.dataset.diaryEdit);
+      if (entry) showDiaryEditor(entry);
+      return;
+    }
+
+    const deleteButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-diary-delete]");
+    if (!deleteButton || !diarySessionToken) return;
+    const id = deleteButton.dataset.diaryDelete || "";
+    if (!id || !window.confirm("确定删除这篇日记吗？")) return;
+
+    deleteButton.disabled = true;
+    setDiaryStatus("正在删除。");
+    try {
+      const response = await fetch(`${diaryApiBase}/api/diary/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${diarySessionToken}`
+        }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || "删除失败。");
+      }
+      setDiaryStatus("已删除。");
+      await loadDiaryEntries(false);
+    } catch (error) {
+      if (error instanceof Error && /Unauthorized|incorrect|expired/i.test(error.message)) {
+        diarySessionToken = "";
+      }
+      setDiaryStatus(error instanceof Error ? error.message : "删除失败。");
+    } finally {
+      deleteButton.disabled = false;
     }
   });
 
@@ -1000,7 +1126,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .diary-gate label,
-  .diary-search,
+  .diary-filter label,
   .diary-editor label {
     display: grid;
     gap: 6px;
@@ -1010,7 +1136,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .diary-gate input,
-  .diary-search input,
+  .diary-filter input,
   .diary-editor input,
   .diary-editor textarea {
     width: 100%;
@@ -1022,7 +1148,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .diary-gate input,
-  .diary-search input,
+  .diary-filter input,
   .diary-editor input {
     height: 42px;
     padding: 0 11px;
@@ -1034,9 +1160,27 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     resize: vertical;
   }
 
+  .diary-filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px 140px auto;
+    gap: 10px;
+    align-items: end;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-muted), transparent 18%);
+  }
+
+  .diary-filter__actions {
+    display: flex;
+    gap: 8px;
+  }
+
   .diary-gate button,
   .diary-book button,
-  .diary-editor button {
+  .diary-editor button,
+  .diary-filter button,
+  .diary-entry button {
     justify-self: start;
     min-width: 90px;
     height: 40px;
@@ -1047,9 +1191,18 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     font-weight: 900;
   }
 
+  .diary-filter button[type="reset"],
+  .diary-entry__actions button:last-child {
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    color: var(--text);
+  }
+
   .diary-gate button:disabled,
   .diary-book button:disabled,
-  .diary-editor button:disabled {
+  .diary-editor button:disabled,
+  .diary-filter button:disabled,
+  .diary-entry button:disabled {
     cursor: not-allowed;
     opacity: 0.58;
   }
@@ -1063,7 +1216,7 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
   .diary-book__list {
     display: grid;
-    gap: 10px;
+    gap: 18px;
   }
 
   .diary-book__empty {
@@ -1072,12 +1225,31 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
   }
 
   .diary-entry {
+    position: relative;
     display: grid;
     gap: 8px;
-    padding: 14px;
-    border: 1px solid var(--border);
+    padding: 16px 14px;
+    border: 1px solid color-mix(in srgb, var(--border), var(--accent) 18%);
     border-radius: 8px;
-    background: color-mix(in srgb, var(--surface-muted), transparent 12%);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface), white 5%), color-mix(in srgb, var(--surface-muted), transparent 10%));
+    box-shadow:
+      0 10px 26px rgba(91, 58, 76, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  }
+
+  .diary-entry + .diary-entry::before {
+    position: absolute;
+    top: -11px;
+    right: 8px;
+    left: 8px;
+    height: 3px;
+    border-radius: 999px;
+    background:
+      linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent), transparent 38%), transparent),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(95, 121, 180, 0.2));
+    box-shadow: 0 2px 7px rgba(70, 87, 126, 0.16);
+    content: "";
   }
 
   .diary-entry__meta {
@@ -1091,14 +1263,36 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
     line-height: 1.35;
   }
 
-  .diary-entry p {
-    display: -webkit-box;
+  .diary-entry__content {
     margin: 0;
-    overflow: hidden;
     color: var(--text);
+    line-height: 1.75;
+    overflow-wrap: anywhere;
     white-space: pre-wrap;
+  }
+
+  .diary-entry.is-collapsed .diary-entry__content {
+    display: -webkit-box;
+    overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 5;
+  }
+
+  .diary-entry__bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .diary-entry__bar button {
+    min-width: 72px;
+    height: 34px;
+  }
+
+  .diary-entry__actions {
+    display: flex;
+    gap: 8px;
   }
 
   @media (max-width: 620px) {
@@ -1108,6 +1302,23 @@ const dynamicApiBase = (import.meta.env.PUBLIC_DYNAMIC_API_BASE || "").replace(/
 
     .diary-modal__panel {
       padding: 18px;
+    }
+
+    .diary-filter {
+      grid-template-columns: 1fr;
+    }
+
+    .diary-filter__actions {
+      width: 100%;
+    }
+
+    .diary-filter__actions button {
+      flex: 1 1 0;
+    }
+
+    .diary-entry__bar {
+      align-items: stretch;
+      flex-direction: column;
     }
 
     .diary-gate button,

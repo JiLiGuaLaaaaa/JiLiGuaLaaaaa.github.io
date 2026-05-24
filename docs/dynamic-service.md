@@ -63,7 +63,7 @@ PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 - `GET /health`：健康检查。
 - `GET /api/stats?path=/blog/`：读取全站和单页访问量。
 - `POST /api/stats/pageview`：记录一次页面访问，只保存聚合计数。
-- `GET /api/dynamics?limit=6`：读取已发布的公开动态，包含公开图片引用。
+- `GET /api/dynamics?limit=6`：读取已发布的公开动态，包含公开图片引用；支持 `title`、`content`、`q`、`from` 和 `to` 参数，用于标题关键字、正文关键字、综合关键字和日期跨度筛选。
 - `GET /api/life?limit=6`：兼容旧地址，返回同样的动态列表。
 - `GET /uploads/...`：读取动态图片，只允许读取动态服务数据目录下的图片文件。
 
@@ -71,13 +71,17 @@ PUBLIC_DYNAMIC_API_BASE=https://activity.20050619.xyz
 
 - `POST /api/dynamics/session`：验证动态发布密码并创建短期发布会话。
 - `POST /api/dynamics`：创建公开动态，需要发布密码、短期发布会话或管理员 Token，支持最多 4 张 JPG/PNG/WebP 图片。
+- `PUT/PATCH /api/dynamics/:id`：编辑公开动态，需要短期发布会话或管理员 Token；可以保留已有图片，也可以追加新图片。
+- `DELETE /api/dynamics/:id`：删除公开动态，需要短期发布会话或管理员 Token；删除记录时会同时清理对应上传图片文件。
 - `POST /api/diary/session`：验证日记密码并创建短期会话。
 - `POST /api/diary`：写入私密日记。
-- `GET /api/diary`：读取私密日记列表；`q` 参数可按标题或内容搜索。
+- `GET /api/diary`：读取私密日记列表；支持 `q`、`title`、`content`、`from` 和 `to` 参数，可按标题、内容和日期跨度检索。
+- `PUT/PATCH /api/diary/:id`：编辑私密日记，需要日记会话或管理员 Token。
+- `DELETE /api/diary/:id`：删除私密日记，需要日记会话或管理员 Token。
 - `POST /api/life`：兼容旧地址，写入逻辑与动态接口一致。
 - `GET /admin/`：动态服务提供的简单管理页面。
 
-其中 `POST /api/diary` 和 `GET /api/diary` 支持会话令牌或管理员 Token；`GET /admin/` 也可以继续用管理员 Token 进入。
+其中动态编辑/删除必须使用动态发布会话或管理员 Token，日记读写/编辑/删除必须使用日记会话或管理员 Token；`GET /admin/` 也可以继续用管理员 Token 进入。
 
 ```text
 Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
@@ -89,7 +93,7 @@ Authorization: Bearer <BLOG_DYNAMIC_ADMIN_TOKEN>
 
 - `stats.json`：访问量聚合数据。
 - `dynamic-records.json`：公开动态记录。
-- `life-records.json`：旧生活记录兼容文件，仍会被公开 API 合并读取。
+- `life-records.json`：旧生活记录兼容文件，仍会被公开 API 合并读取；新版动态管理接口也兼容编辑或删除这些旧记录。
 - `diary-entries.json`：私密日记，只能通过认证 API 读取。
 - `uploads/`：动态图片目录，公开动态中附带的图片保存在这里。
 
